@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.env
+.env.production
+agent-api-keys.json
+backups/
+*.log

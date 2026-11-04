@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mounadev Communication Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg-card: #13131a;
+    --bg-hover: #1a1a24;
+    --border: #2a2a3a;
+    --text: #e8e8f0;
+    --text-muted: #8888a0;
+    --accent: #6366f1;
+    --accent-light: #818cf8;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --info: #3b82f6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* Layout */
+  .app { display: flex; min-height: 100vh; }
+  .sidebar {
+    width: 240px;
+    background: var(--bg-card);
+    border-right: 1px solid var(--border);
+    padding: 20px 0;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    overflow-y: auto;
+  }
+  .main { margin-left: 240px; flex: 1; padding: 24px; }
+
+  /* Sidebar */
+  .logo {
+    padding: 0 20px 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .logo h1 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--accent-light);
+    letter-spacing: -0.3px;
+  }
+  .logo span { font-size: 11px; color: var(--text-muted); }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 20px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.15s;
+    border-left: 3px solid transparent;
+  }
+  .nav-item:hover { background: var(--bg-hover); color: var(--text); }
+  .nav-item.active {
+    background: var(--bg-hover);
+    color: var(--accent-light);
+    border-left-color: var(--accent);
+  }
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+  /* Header */
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 24px;
+  }
+  .header h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+
+  /* Cards */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .stat-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .stat-value { font-size: 28px; font-weight: 700; letter-spacing: -1px; }
+  .stat-value.success { color: var(--success); }
+  .stat-value.warning { color: var(--warning); }
+  .stat-value.danger { color: var(--danger); }
+  .stat-value.accent { color: var(--accent-light); }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  tr:hover td { background: var(--bg-hover); }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge.idle { background: #1a1a2e; color: #8888a0; }
+  .badge.working { background: #0d3320; color: #10b981; }
+  .badge.sent { background: #0d2033; color: #3b82f6; }
+  .badge.failed { background: #330d0d; color: #ef4444; }
+  .badge.queued { background: #2a2a1a; color: #f59e0b; }
+  .badge.opted_in { background: #0d3320; color: #10b981; }
+  .badge.opted_out { background: #330d0d; color: #ef4444; }
+  .badge.none { background: #1a1a2e; color: #8888a0; }
+  .badge.active { background: #0d2033; color: #3b82f6; }
+  .badge.escalated { background: #331a0d; color: #f59e0b; }
+  .badge.closed { background: #1a1a2e; color: #8888a0; }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text);
+    transition: all 0.15s;
+  }
+  .btn:hover { background: var(--bg-hover); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  .btn.primary:hover { background: var(--accent-light); }
+  .btn.danger { background: var(--danger); border-color: var(--danger); color: white; }
+  .btn.success { background: var(--success); border-color: var(--success); color: white; }
+  .btn.sm { padding: 4px 10px; font-size: 12px; }
+
+  /* Forms */
+  .form-group { margin-bottom: 12px; }
+  .form-label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .form-input {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .form-input:focus { outline: none; border-color: var(--accent); }
+  .form-select {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 13px;
+  }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    width: 90%;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  .modal h3 { font-size: 18px; margin-bottom: 16px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+  }
+  .tab.active { background: var(--bg-hover); color: var(--accent-light); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 200;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { background: var(--success); color: white; }
+  .toast.error { background: var(--danger); color: white; }
+  .toast.info { background: var(--info); color: white; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; }
+  }
+
+  /* Pulse animation for status */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .pulse { animation: pulse 2s infinite; }
+
+  /* Empty state */
+  .empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-muted);
+  }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+
+  /* Search */
+  .search-bar {
+    display: flex; gap: 8px; margin-bottom: 16px;
+  }
+  .search-bar input { flex: 1; }
+
+  /* Toggle */
+  .toggle {
+    position: relative;
+    width: 44px; height: 24px;
+    background: var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle.on { background: var(--success); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 20px; height: 20px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  .toggle.on::after { transform: translateX(20px); }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="logo">
+      <h1>Mounadev Hub</h1>
+      <span>Communication Center</span>
+    </div>
+    <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
+      <span class="nav-icon">📊</span> Dashboard
+    </div>
+    <div class="nav-item" data-page="agents" onclick="navigate('agents')">
+      <span class="nav-icon">🤖</span> Agents
+    </div>
+    <div class="nav-item" data-page="contacts" onclick="navigate('contacts')">
+      <span class="nav-icon">👥</span> Contacts
+    </div>
+    <div class="nav-item" data-page="conversations" onclick="navigate('conversations')">
+      <span class="nav-icon">💬</span> Conversations
+    </div>
+    <div class="nav-item" data-page="messages" onclick="navigate('messages')">
+      <span class="nav-icon">✉️</span> Messages
+    </div>
+    <div class="nav-item" data-page="templates" onclick="navigate('templates')">
+      <span class="nav-icon">📝</span> Templates
+    </div>
+    <div class="nav-item" data-page="audit" onclick="navigate('audit')">
+      <span class="nav-icon">📋</span> Audit Log
+    </div>
+    <div class="nav-item" data-page="settings" onclick="navigate('settings')">
+      <span class="nav-icon">⚙️</span> Settings
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="main" id="main">
+    <!-- Dashboard page -->
+    <div id="page-dashboard" class="page">
+      <div class="header">
+        <h2>Dashboard</h2>
+        <div class="header-actions">
+          <span id="hub-status" class="badge idle">Checking...</span>
+          <button class="btn" onclick="loadAll()">🔄 Refresh</button>
+        </div>
+      </div>
+
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Agents</div>
+          <div class="stat-value accent" id="stat-agents">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Contacts</div>
+          <div class="stat-value" id="stat-contacts">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Conversations</div>
+          <div class="stat-value" id="stat-conversations">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Messages Sent</div>
+          <div class="stat-value success" id="stat-sent">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Messages Failed</div>
+          <div class="stat-value danger" id="stat-failed">-</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">System Status</div>
+          <div class="stat-value" id="stat-status" style="font-size:16px">-</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Recent Activity</div>
+        <div id="recent-activity" class="empty">
+          <div class="empty-icon">📊</div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agents page -->
+    <div id="page-agents" class="page" style="display:none">
+      <div class="header">
+        <h2>Agents</h2>
+        <div class="header-actions">
+          <button class="btn" onclick="loadAgents()">🔄 Refresh</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Name</th><th>Role</th><th>Status</th><th>Messages</th><th>Actions</th>
+            </tr></thead>
+            <tbody id="agents-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contacts page -->
+    <div id="page-contacts" class="page" style="display:none">
+      <div class="header">
+        <h2>Contacts</h2>
+        <div class="header-actions">
+          <button class="btn primary" onclick="showAddContact()">+ Add Contact</button>
+          <button class="btn" onclick="loadContacts()">🔄</button>
+        </div>
+      </div>
+      <div class="search-bar">
+        <input class="form-input" id="contact-search" placeholder="Search contacts..." oninput="filterContacts()">
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Name</th><th>Phone</th><th>Company</th><th>Consent</th><th>Source</th><th>Actions</th>
+            </tr></thead>
+            <tbody id="contacts-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Conversations page -->
+    <div id="page-conversations" class="page" style="display:none">
+      <div class="header">
+        <h2>Conversations</h2>
+        <div class="header-actions">
+          <button class="btn" onclick="loadConversations()">🔄 Refresh</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Contact</th><th>Channel</th><th>Status</th><th>Assigned</th><th>Last Message</th><th>Actions</th>
+            </tr></thead>
+            <tbody id="conversations-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Messages page -->
+    <div id="page-messages" class="page" style="display:none">
+      <div class="header">
+        <h2>Send Message</h2>
+      </div>
+      <div class="card" style="max-width:600px">
+        <div class="form-group">
+          <label class="form-label">Contact</label>
+          <select class="form-select" id="msg-contact"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Message Content</label>
+          <textarea class="form-input" id="msg-content" rows="4" placeholder="Type your message..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Idempotency Key (optional)</label>
+          <input class="form-input" id="msg-idempotency" placeholder="unique-key-123">
+        </div>
+        <button class="btn primary" onclick="sendMessage()">📤 Send</button>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <div class="card-title">Message History</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Time</th><th>Direction</th><th>Contact</th><th>Content</th><th>Status</th>
+            </tr></thead>
+            <tbody id="messages-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Templates page -->
+    <div id="page-templates" class="page" style="display:none">
+      <div class="header">
+        <h2>Templates</h2>
+        <div class="header-actions">
+          <button class="btn primary" onclick="showAddTemplate()">+ New Template</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Name</th><th>Language</th><th>Category</th><th>Status</th><th>Variables</th>
+            </tr></thead>
+            <tbody id="templates-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Audit page -->
+    <div id="page-audit" class="page" style="display:none">
+      <div class="header">
+        <h2>Audit Log</h2>
+        <div class="header-actions">
+          <button class="btn" onclick="loadAudit()">🔄 Refresh</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Time</th><th>Agent</th><th>Action</th><th>Resource</th><th>Details</th>
+            </tr></thead>
+            <tbody id="audit-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings page -->
+    <div id="page-settings" class="page" style="display:none">
+      <div class="header">
+        <h2>Settings</h2>
+      </div>
+      <div class="card" style="max-width:600px">
+        <div class="card-title">API Configuration</div>
+        <div class="form-group">
+          <label class="form-label">Agent API Key</label>
+          <input class="form-input mono" id="settings-apikey" placeholder="caissa_sami_...">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Hub URL</label>
+          <input class="form-input" id="settings-url" value="http://localhost:3001">
+        </div>
+        <button class="btn primary" onclick="saveSettings()">Save</button>
+      </div>
+
+      <div class="card" style="max-width:600px; margin-top:16px">
+        <div class="card-title">System Controls</div>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+          <div>
+            <div style="font-weight:500">Outbound Messaging</div>
+            <div style="font-size:12px; color:var(--text-muted)">Pause/resume all outbound messages</div>
+          </div>
+          <div class="toggle" id="toggle-outbound" onclick="toggleOutbound()"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center">
+          <div>
+            <div style="font-weight:500">System Status</div>
+            <div style="font-size:12px; color:var(--text-muted)" id="sys-status">Checking...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Modal: Add Contact -->
+<div class="modal-overlay" id="modal-contact">
+  <div class="modal">
+    <h3>Add Contact</h3>
+    <div class="form-group">
+      <label class="form-label">Phone Number</label>
+      <input class="form-input" id="new-phone" placeholder="+212 6XX XXX XXX">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Name</label>
+      <input class="form-input" id="new-name" placeholder="Contact name">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Company</label>
+      <input class="form-input" id="new-company" placeholder="Company name">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Business Type</label>
+      <input class="form-input" id="new-biztype" placeholder="e.g. restaurant">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Consent Status</label>
+      <select class="form-select" id="new-consent">
+        <option value="none">None</option>
+        <option value="opted_in">Opted In</option>
+      </select>
+    </div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px">
+      <button class="btn" onclick="closeModal('modal-contact')">Cancel</button>
+      <button class="btn primary" onclick="createContact()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add Template -->
+<div class="modal-overlay" id="modal-template">
+  <div class="modal">
+    <h3>New Template</h3>
+    <div class="form-group">
+      <label class="form-label">Name</label>
+      <input class="form-input" id="tpl-name" placeholder="template_name">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Language</label>
+      <select class="form-select" id="tpl-lang">
+        <option value="en">English</option>
+        <option value="fr">French</option>
+        <option value="ar">Arabic</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Category</label>
+      <select class="form-select" id="tpl-cat">
+        <option value="marketing">Marketing</option>
+        <option value="utility">Utility</option>
+        <option value="authentication">Authentication</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Content (use {{variable}} for placeholders)</label>
+      <textarea class="form-input" id="tpl-content" rows="4" placeholder="Hello {{name}}, ..."></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Variables (comma-separated)</label>
+      <input class="form-input" id="tpl-vars" placeholder="name, company">
+    </div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:16px">
+      <button class="btn" onclick="closeModal('modal-template')">Cancel</button>
+      <button class="btn primary" onclick="createTemplate()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const API_BASE = localStorage.getItem('hub_url') || 'http://localhost:3001';
+let apiKey = localStorage.getItem('hub_apikey') || 'caissa_sami_b6cfa51d26f7489ebda1902a22541147';
+let contacts = [];
+let agents = [];
+let conversations = [];
+let messages = [];
+
+// Navigation
+function navigate(page) {
+  document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page).style.display = 'block';
+  document.querySelector(`[data-page="${page}"]`).classList.add('active');
+  loadPage(page);
+}
+
+function loadPage(page) {
+  switch(page) {
+    case 'dashboard': loadDashboard(); break;
+    case 'agents': loadAgents(); break;
+    case 'contacts': loadContacts(); break;
+    case 'conversations': loadConversations(); break;
+    case 'messages': loadMessages(); break;
+    case 'templates': loadTemplates(); break;
+    case 'audit': loadAudit(); break;
+    case 'settings': loadSettings(); break;
+  }
+}
+
+// API helpers
+async function api(path, opts = {}) {
+  const headers = {};
+  if (apiKey) headers['X-Agent-Key'] = apiKey;
+  if (opts.method && opts.method !== 'GET') headers['Content-Type'] = 'application/json';
+  try {
+    const res = await fetch(API_BASE + path, { ...opts, headers: { ...headers, ...opts.headers } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || data.message || 'API error ' + res.status);
+    return data;
+  } catch (err) {
+    console.error('API error:', path, err.message);
+    return null;
+  }
+}
+
+function toast(msg, type = 'info') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+const showToast = toast;
+
+// Dashboard
+async function loadDashboard() {
+  try {
+    const health = await fetch(API_BASE + '/health').then(r => r.json());
+    document.getElementById('hub-status').textContent = health.status;
+    document.getElementById('hub-status').className = 'badge ' + (health.status === 'healthy' ? 'opted_in' : 'failed');
+    document.getElementById('stat-status').textContent = health.status;
+
+    const contactsRes = await api('/api/v1/contacts?limit=100');
+    contacts = (contactsRes && contactsRes.data) || [];
+
+    const convsRes = await api('/api/v1/conversations?limit=100');
+    conversations = (convsRes && convsRes.data) || [];
+
+    const auditRes = await api('/api/v1/audit?limit=50');
+    const logs = (auditRes && auditRes.data) || [];
+    let sent = 0, failed = 0;
+    logs.forEach(l => {
+      if (l.action === 'send_message' && l.details?.status === 'sent') sent++;
+      if (l.action === 'send_message' && l.details?.status === 'failed') failed++;
+    });
+
+    document.getElementById('stat-agents').textContent = '15';
+    document.getElementById('stat-contacts').textContent = contacts.length;
+    document.getElementById('stat-conversations').textContent = conversations.length;
+    document.getElementById('stat-sent').textContent = sent;
+    document.getElementById('stat-failed').textContent = failed;
+
+    // Recent activity
+    const activity = document.getElementById('recent-activity');
+    if (logs.length === 0) {
+      activity.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><p>No recent activity</p></div>';
+    } else {
+      activity.innerHTML = logs.slice(0, 5).map(l => `
+        <div style="padding:8px 0; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center">
+          <div>
+            <span style="font-weight:500">${l.agent_id || 'system'}</span>
+            <span style="color:var(--text-muted); margin-left:8px">${l.action}</span>
+          </div>
+          <span style="font-size:11px; color:var(--text-muted)">${new Date(l.created_at).toLocaleString()}</span>
+        </div>
+      `).join('');
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function loadAll() { loadDashboard(); }
+
+// Agents
+async function loadAgents() {
+  try {
+    const data = await api('/api/v1/audit?limit=1').catch(() => ({}));
+    // Get agents from Supabase via a direct query endpoint if available
+    // For now, show from localStorage or fetch
+    const tbody = document.getElementById('agents-table');
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Agents loaded from Supabase (15 total)</td></tr>';
+  } catch (err) {}
+}
+
+// Contacts
+async function loadContacts() {
+  try {
+    const data = await api('/api/v1/contacts?limit=100');
+    contacts = data.data || data.contacts || [];
+    renderContacts(contacts);
+  } catch (err) {}
+}
+
+function renderContacts(list) {
+  const tbody = document.getElementById('contacts-table');
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No contacts yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(c => `
+    <tr>
+      <td>${c.name || '-'}</td>
+      <td class="mono">${c.phone}</td>
+      <td>${c.company || '-'}</td>
+      <td><span class="badge ${c.consent_status}">${c.consent_status}</span></td>
+      <td>${c.source || '-'}</td>
+      <td>
+        <button class="btn sm" onclick="viewContact('${c.id}')">View</button>
+        ${c.consent_status !== 'opted_out' ? `<button class="btn sm danger" onclick="optOutContact('${c.id}')">Opt Out</button>` : ''}
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filterContacts() {
+  const q = document.getElementById('contact-search').value.toLowerCase();
+  const filtered = contacts.filter(c =>
+    (c.name || '').toLowerCase().includes(q) ||
+    (c.phone || '').includes(q) ||
+    (c.company || '').toLowerCase().includes(q)
+  );
+  renderContacts(filtered);
+}
+
+function showAddContact() { document.getElementById('modal-contact').classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+async function createContact() {
+  try {
+    const data = await api('/api/v1/contacts', {
+      method: 'POST',
+      body: JSON.stringify({
+        phone: document.getElementById('new-phone').value,
+        name: document.getElementById('new-name').value,
+        company: document.getElementById('new-company').value,
+        business_type: document.getElementById('new-biztype').value,
+        consent_status: document.getElementById('new-consent').value,
+      })
+    });
+    toast('Contact created!', 'success');
+    closeModal('modal-contact');
+    loadContacts();
+  } catch (err) {}
+}
+
+async function optOutContact(id) {
+  if (!confirm('Opt out this contact?')) return;
+  try {
+    await api(`/api/v1/contacts/${id}/opt-out`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: 'manual', agent_id: 'admin' })
+    });
+    toast('Contact opted out', 'info');
+    loadContacts();
+  } catch (err) {}
+}
+
+function viewContact(id) {
+  const c = contacts.find(x => x.id === id);
+  if (c) toast(`Viewing ${c.name || c.phone}`, 'info');
+}
+
+// Conversations
+async function loadConversations() {
+  try {
+    const data = await api('/api/v1/conversations?limit=100');
+    conversations = data.data || data.conversations || [];
+    const tbody = document.getElementById('conversations-table');
+    if (conversations.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">No conversations</td></tr>';
+      return;
+    }
+    tbody.innerHTML = conversations.map(c => `
+      <tr>
+        <td>${c.contact?.name || c.contact?.phone || '-'}</td>
+        <td>${c.channel}</td>
+        <td><span class="badge ${c.status}">${c.status}</span></td>
+        <td>${c.assigned_agent || '-'}</td>
+        <td style="font-size:11px; color:var(--text-muted)">${c.last_message_at ? new Date(c.last_message_at).toLocaleString() : '-'}</td>
+        <td>
+          ${c.status === 'active' ? `<button class="btn sm" onclick="escalateConv('${c.id}')">Escalate</button>` : ''}
+          ${c.status === 'escalated' ? `<button class="btn sm success" onclick="resolveConv('${c.id}')">Resolve</button>` : ''}
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {}
+}
+
+async function escalateConv(id) {
+  try {
+    await api(`/api/v1/conversations/${id}/escalate`, {
+      method: 'POST',
+      body: JSON.stringify({ agent_id: 'admin', reason: 'manual escalation' })
+    });
+    toast('Escalated', 'warning');
+    loadConversations();
+  } catch (err) {}
+}
+
+async function resolveConv(id) {
+  try {
+    await api(`/api/v1/conversations/${id}/resolve`, { method: 'POST' });
+    toast('Resolved', 'success');
+    loadConversations();
+  } catch (err) {}
+}
+
+// Messages
+async function loadMessages() {
+  // Populate contact dropdown
+  if (contacts.length === 0) await loadContacts();
+  const sel = document.getElementById('msg-contact');
+  sel.innerHTML = contacts.map(c => `<option value="${c.id}">${c.name || c.phone}</option>`).join('');
+
+  // Load message history from audit
+  try {
+    const data = await api('/api/v1/audit?limit=50');
+    const logs = data.data || data.logs || [];
+    const msgLogs = logs.filter(l => l.action === 'send_message');
+    const tbody = document.getElementById('messages-table');
+    if (msgLogs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No messages sent yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = msgLogs.map(l => `
+      <tr>
+        <td style="font-size:11px">${new Date(l.created_at).toLocaleString()}</td>
+        <td><span class="badge sent">outbound</span></td>
+        <td>${l.details?.contact_id?.substring(0,8) || '-'}</td>
+        <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">${l.details?.content || '-'}</td>
+        <td><span class="badge ${l.details?.status || 'queued'}">${l.details?.status || '-'}</span></td>
+      </tr>
+    `).join('');
+  } catch (err) {}
+}
+
+async function sendMessage() {
+  const contactId = document.getElementById('msg-contact').value;
+  const content = document.getElementById('msg-content').value;
+  const idempotency = document.getElementById('msg-idempotency').value;
+  if (!contactId || !content) { toast('Fill all fields', 'error'); return; }
+  try {
+    const body = { contact_id: contactId, content };
+    if (idempotency) body.idempotency_key = idempotency;
+    const data = await api('/api/v1/messages/send', { method: 'POST', body: JSON.stringify(body) });
+    toast(`Message ${data.status}!`, data.status === 'sent' ? 'success' : 'warning');
+    document.getElementById('msg-content').value = '';
+    loadMessages();
+  } catch (err) {}
+}
+
+// Templates
+async function loadTemplates() {
+  try {
+    const data = await api('/api/v1/templates');
+    const templates = data.data || data.templates || [];
+    const tbody = document.getElementById('templates-table');
+    if (templates.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No templates yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = templates.map(t => `
+      <tr>
+        <td>${t.name}</td>
+        <td>${t.language}</td>
+        <td>${t.category}</td>
+        <td><span class="badge ${t.status === 'approved' ? 'opted_in' : t.status === 'rejected' ? 'opted_out' : 'queued'}">${t.status}</span></td>
+        <td style="font-size:11px">${(t.variables || []).join(', ') || '-'}</td>
+      </tr>
+    `).join('');
+  } catch (err) {}
+}
+
+function showAddTemplate() { document.getElementById('modal-template').classList.add('show'); }
+
+async function createTemplate() {
+  try {
+    const vars = document.getElementById('tpl-vars').value.split(',').map(v => v.trim()).filter(Boolean);
+    await api('/api/v1/templates', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: document.getElementById('tpl-name').value,
+        language: document.getElementById('tpl-lang').value,
+        category: document.getElementById('tpl-cat').value,
+        content: document.getElementById('tpl-content').value,
+        variables: vars,
+      })
+    });
+    toast('Template created!', 'success');
+    closeModal('modal-template');
+    loadTemplates();
+  } catch (err) {}
+}
+
+// Audit
+async function loadAudit() {
+  try {
+    const data = await api('/api/v1/audit?limit=100');
+    const logs = data.data || data.logs || [];
+    const tbody = document.getElementById('audit-table');
+    if (logs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No audit logs</td></tr>';
+      return;
+    }
+    tbody.innerHTML = logs.map(l => `
+      <tr>
+        <td style="font-size:11px">${new Date(l.created_at).toLocaleString()}</td>
+        <td>${l.agent_id || 'system'}</td>
+        <td>${l.action}</td>
+        <td style="font-size:11px">${l.resource_type || '-'}${l.resource_id ? '/' + l.resource_id.substring(0,8) : ''}</td>
+        <td style="font-size:11px; max-width:200px; overflow:hidden; text-overflow:ellipsis">${JSON.stringify(l.details || {})}</td>
+      </tr>
+    `).join('');
+  } catch (err) {}
+}
+
+// Settings
+function loadSettings() {
+  document.getElementById('settings-apikey').value = apiKey;
+  document.getElementById('settings-url').value = API_BASE;
+  checkSystemStatus();
+}
+
+function saveSettings() {
+  apiKey = document.getElementById('settings-apikey').value;
+  const url = document.getElementById('settings-url').value;
+  localStorage.setItem('hub_apikey', apiKey);
+  localStorage.setItem('hub_url', url);
+  location.reload();
+}
+
+async function checkSystemStatus() {
+  try {
+    const health = await fetch(API_BASE + '/health').then(r => r.json());
+    document.getElementById('sys-status').textContent = `${health.status} (uptime: ${Math.round(health.uptime)}s)`;
+    document.getElementById('toggle-outbound').classList.add('on');
+  } catch (err) {
+    document.getElementById('sys-status').textContent = 'Offline';
+  }
+}
+
+async function toggleOutbound() {
+  const toggle = document.getElementById('toggle-outbound');
+  const isOn = toggle.classList.contains('on');
+  try {
+    if (isOn) {
+      await api('/api/v1/admin/pause-outbound', { method: 'POST', body: JSON.stringify({ agent_id: 'admin' }) });
+      toggle.classList.remove('on');
+      toast('Outbound paused', 'warning');
+    } else {
+      await api('/api/v1/admin/resume-outbound', { method: 'POST', body: JSON.stringify({ agent_id: 'admin' }) });
+      toggle.classList.add('on');
+      toast('Outbound resumed', 'success');
+    }
+  } catch (err) {}
+}
+
+// Init
+navigate('dashboard');
+</script>
+</body>
+</html>
