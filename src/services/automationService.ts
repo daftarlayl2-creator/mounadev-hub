@@ -1,5 +1,4 @@
 // src/services/automationService.ts
-import { getSupabase } from '../utils/supabase';
 import { logger } from '../utils/logger';
 import { conversationService } from './conversationService';
 import { contactService } from './contactService';
@@ -21,18 +20,6 @@ export class AutomationService {
 
     // Default to sami (sales)
     return 'sami';
-  }
-
-  // Auto-consent: inbound message implies opt-in
-  async handleInboundConsent(contactId: string): Promise<void> {
-    const contact = await contactService.getById(contactId);
-    if (contact && contact.consent_status === 'none') {
-      await contactService.update(contactId, {
-        consent_status: 'opted_in',
-        consent_date: new Date().toISOString(),
-      });
-      logger.info('Auto-consent granted via inbound message', { contactId });
-    }
   }
 
   // Check if contact should receive auto-reply
