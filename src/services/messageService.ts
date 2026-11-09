@@ -164,6 +164,7 @@ export class MessageService {
     content: string;
     senderPhone: string;
     providerMessageId: string;
+    idempotencyKey?: string;
     messageType?: string;
   }): Promise<Message> {
     const supabase = (await import('../utils/supabase')).getSupabase();
@@ -178,6 +179,7 @@ export class MessageService {
         message_type: params.messageType || 'text',
         status: 'received',
         provider_message_id: params.providerMessageId,
+        idempotency_key: params.idempotencyKey,
       })
       .select()
       .single();
