@@ -67,9 +67,8 @@ export class AiReplyService {
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        logger.error('AI reply request failed', { status: res.status, body: text });
-        return { success: false, reply: '', error: `http_${res.status}: ${text}` };
+        logger.error('AI reply request failed', { status: res.status });
+        return { success: false, reply: '', error: `http_${res.status}` };
       }
 
       const data: any = await res.json();
