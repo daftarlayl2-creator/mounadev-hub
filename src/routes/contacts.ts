@@ -11,7 +11,7 @@ const router = Router();
 router.use(authenticateAgent);
 
 // GET /contacts
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', requirePermission('read'), async (req: Request, res: Response) => {
   try {
     const agent = (req as AuthenticatedRequest).agent;
     const result = await contactService.search({
@@ -30,7 +30,7 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // GET /contacts/:id
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', requirePermission('read'), async (req: Request, res: Response) => {
   try {
     const contact = await contactService.getById(req.params.id);
     if (!contact) {
@@ -85,7 +85,7 @@ router.post('/:id/opt-out', requirePermission('write'), async (req: Request, res
 });
 
 // GET /contacts/:id/permission
-router.get('/:id/permission', async (req: Request, res: Response) => {
+router.get('/:id/permission', requirePermission('read'), async (req: Request, res: Response) => {
   try {
     const perm = await contactService.checkPermission(req.params.id);
     res.json(perm);
