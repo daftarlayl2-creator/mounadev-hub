@@ -104,7 +104,7 @@ export class OpenWAAdapter implements ChannelAdapter {
       const content = typeof rawContent === 'string' ? rawContent.slice(0, 4096) : '';
       const rawMessageId = d.id || d.messageId || d.key?.id || '';
       const messageId = typeof rawMessageId === 'string' ? rawMessageId.slice(0, 255) : '';
-      if (!/^\\+?[1-9]\\d{6,14}$/.test(from) || !content.trim()) return messages;
+      if (!/^\+?[1-9]\d{6,14}$/.test(from) || !content.trim()) return messages;
 
       messages.push({
         from,
