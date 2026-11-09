@@ -69,11 +69,11 @@ router.post('/send', requirePermission('send'), rateLimitMiddleware, async (req:
     }
 
     if (err.message.startsWith('provider_error')) {
-      res.status(502).json({ error: 'provider_error', message: err.message, code: 502 });
+      res.status(502).json({ error: 'provider_error', message: 'Messaging provider request failed', code: 502 });
       return;
     }
 
-    res.status(500).json({ error: 'internal_error', message: err.message, code: 500 });
+    res.status(500).json({ error: 'internal_error', message: 'Unable to process messaging request', code: 500 });
   }
 });
 
