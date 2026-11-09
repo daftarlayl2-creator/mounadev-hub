@@ -60,7 +60,7 @@ export class MessageService {
     // 4. Get or create conversation
     let conversation = await conversationService.getByContact(contactId);
     if (!conversation) {
-      conversation = await conversationService.create(contactId, 'whatsapp', agentId);
+      conversation = await conversationService.create(contactId, 'whatsapp', contact.assigned_agent || agentId);
     }
 
     // 5. Check 24h window (for Meta; OpenWA doesn't enforce)
