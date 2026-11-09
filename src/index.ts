@@ -2,6 +2,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { config, validateConfig } from './config';
 import { logger } from './utils/logger';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
@@ -53,6 +54,15 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/health', (_req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString(), version: '1.0.0' });
 });
+
+// Coarse IP-level protection against API and credential-guessing bursts.
+app.use('/api/v1', rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'too_many_requests', message: 'Too many API requests; retry shortly', code: 429 },
+}));
 
 // API routes
 app.use('/api/v1/contacts', contactsRouter);
