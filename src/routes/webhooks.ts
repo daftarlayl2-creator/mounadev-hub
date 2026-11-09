@@ -170,9 +170,9 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
           }
         }
 
-        logger.info('Inbound message processed', { from: msg.from, conversation: conversation.id });
+        logger.info('Inbound message processed', { from: '***' + msg.from.slice(-4), conversation: conversation.id });
       } catch (err: any) {
-        logger.error('Failed to process inbound message', { error: err.message, from: msg.from });
+        logger.error('Failed to process inbound message', { error: err.message, from: '***' + msg.from.slice(-4) });
       }
     }
   } catch (err: any) {
