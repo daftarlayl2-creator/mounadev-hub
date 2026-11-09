@@ -42,6 +42,7 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
     }
 
     const inboundMessages = adapter.parseInbound(req.body);
+    const deliveryIdempotencyKey = req.get('x-openwa-idempotency-key') || undefined;
 
     // Respond immediately (process async)
     res.status(200).json({ received: true });
@@ -66,8 +67,13 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
         }
 
         // Provider message IDs make webhook retries idempotent.
+        const supabase = (await import('../utils/supabase')).getSupabase();
+        if (deliveryIdempotencyKey) {
+          const { data: duplicate, error: duplicateError } = await supabase.from('messages').select('id').eq('idempotency_key', deliveryIdempotencyKey).maybeSingle();
+          if (duplicateError) throw new Error('Unable to verify inbound delivery idempotency');
+          if (duplicate) continue;
+        }
         if (msg.messageId) {
-          const supabase = (await import('../utils/supabase')).getSupabase();
           const { data: duplicate, error: duplicateError } = await supabase.from('messages').select('id').eq('provider_message_id', msg.messageId).maybeSingle();
           if (duplicateError) throw new Error('Unable to verify inbound message idempotency');
           if (duplicate) continue;
@@ -79,6 +85,7 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
           content: msg.content,
           senderPhone: msg.from,
           providerMessageId: msg.messageId,
+          idempotencyKey: deliveryIdempotencyKey,
           messageType: msg.type,
         });
 
