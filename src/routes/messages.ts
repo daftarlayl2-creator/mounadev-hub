@@ -33,6 +33,11 @@ router.post('/send', requirePermission('send'), rateLimitMiddleware, async (req:
       res.status(404).json({ error: 'contact_not_found', message: 'Contact not found', code: 404 });
       return;
     }
+    const activeConversation = await conversationService.getByContact(contact_id);
+    if (activeConversation && !agent.permissions.includes('admin') && activeConversation.assigned_agent !== agent.id) {
+      res.status(404).json({ error: 'contact_not_found', message: 'Contact not found', code: 404 });
+      return;
+    }
 
     const message = await msgService.send({
       contactId: contact_id,
@@ -89,6 +94,11 @@ router.post('/send-template', requirePermission('send'), rateLimitMiddleware, as
     const { contact_id, template_name, variables, idempotency_key } = parsed.data;
     const contact = await contactService.getById(contact_id, agent.permissions.includes('admin') ? undefined : agent.id);
     if (!contact) {
+      res.status(404).json({ error: 'contact_not_found', message: 'Contact not found', code: 404 });
+      return;
+    }
+    const activeConversation = await conversationService.getByContact(contact_id);
+    if (activeConversation && !agent.permissions.includes('admin') && activeConversation.assigned_agent !== agent.id) {
       res.status(404).json({ error: 'contact_not_found', message: 'Contact not found', code: 404 });
       return;
     }
