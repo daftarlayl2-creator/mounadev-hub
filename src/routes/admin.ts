@@ -48,7 +48,7 @@ router.post('/resume-outbound', requirePermission('admin'), async (req: Request,
 });
 
 // GET /admin/status
-router.get('/status', async (req: Request, res: Response) => {
+router.get('/status', requirePermission('read'), async (req: Request, res: Response) => {
   try {
     const supabase = getSupabase();
     const { count: totalMessages } = await supabase.from('messages').select('*', { count: 'exact', head: true });
@@ -70,7 +70,7 @@ router.get('/status', async (req: Request, res: Response) => {
 });
 
 // GET /admin/agents — list employee agents available to back the WhatsApp agent
-router.get('/agents', async (_req: Request, res: Response) => {
+router.get('/agents', requirePermission('read'), async (_req: Request, res: Response) => {
   res.json({ agents: listPersonas() });
 });
 
