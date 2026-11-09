@@ -13,7 +13,7 @@ const msgService = createMessageService(adapter);
 const router = Router();
 router.use(authenticateAgent);
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', requirePermission('read'), async (req: Request, res: Response) => {
   try {
     const result = await conversationService.list({
       contact_id: req.query.contact_id as string,
@@ -28,7 +28,7 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', requirePermission('read'), async (req: Request, res: Response) => {
   try {
     const conv = await conversationService.getById(req.params.id);
     if (!conv) {
