@@ -4,6 +4,13 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
+class OpenWAHttpError extends Error {
+  constructor(readonly statusCode: number) {
+    super(`OpenWA provider returned HTTP ${statusCode}`);
+    this.name = 'OpenWAHttpError';
+  }
+}
+
 export function verifyOpenWaSignature(rawBody: Buffer | string | undefined, signature: string | undefined, secret: string): boolean {
   if (!rawBody || !signature || !secret) return false;
   const expected = 'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex');
@@ -36,8 +43,9 @@ export class OpenWAAdapter implements ChannelAdapter {
 
     const response = await fetch(url, options);
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`OpenWA request failed: ${response.status} ${text}`);
+      // A 4xx response is an explicit rejection. A 5xx response can be ambiguous:
+      // the provider may have accepted the message before failing to answer.
+      throw new OpenWAHttpError(response.status);
     }
     return response.json();
   }
@@ -58,7 +66,13 @@ export class OpenWAAdapter implements ChannelAdapter {
       return { success: true, messageId: result.id || result.messageId || 'unknown' };
     } catch (err: any) {
       logger.error('OpenWA sendText failed', { to: this.maskPhone(to) });
-      return { success: false, messageId: '', error: 'OpenWA provider request failed' };
+      if (err instanceof OpenWAHttpError && err.statusCode >= 400 && err.statusCode < 500) {
+        return { success: false, messageId: '', error: `OpenWA provider rejected request (${err.statusCode})` };
+      }
+      // Network errors, response parsing errors, and 5xx responses are ambiguous.
+      // Propagate them so MessageService keeps the message outcome unknown instead
+      // of marking it failed and allowing an unsafe duplicate send.
+      throw err;
     }
   }
 
@@ -81,9 +95,12 @@ export class OpenWAAdapter implements ChannelAdapter {
         caption: caption || '',
       });
       return { success: true, messageId: result.id || result.messageId || 'unknown' };
-    } catch (_err: any) {
+    } catch (err: any) {
       logger.error('OpenWA sendMedia failed', { to: this.maskPhone(to) });
-      return { success: false, messageId: '', error: 'OpenWA provider request failed' };
+      if (err instanceof OpenWAHttpError && err.statusCode >= 400 && err.statusCode < 500) {
+        return { success: false, messageId: '', error: `OpenWA provider rejected request (${err.statusCode})` };
+      }
+      throw err;
     }
   }
 
