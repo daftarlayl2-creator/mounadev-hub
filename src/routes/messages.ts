@@ -28,6 +28,11 @@ router.post('/send', requirePermission('send'), rateLimitMiddleware, async (req:
     }
 
     const { contact_id, content, message_type, idempotency_key, template_name } = parsed.data;
+    const contact = await contactService.getById(contact_id, agent.permissions.includes('admin') ? undefined : agent.id);
+    if (!contact) {
+      res.status(404).json({ error: 'contact_not_found', message: 'Contact not found', code: 404 });
+      return;
+    }
 
     const message = await msgService.send({
       contactId: contact_id,
@@ -77,9 +82,15 @@ router.post('/send-template', requirePermission('send'), rateLimitMiddleware, as
   try {
     const agent = (req as AuthenticatedRequest).agent;
     const { contact_id, template_name, variables, idempotency_key } = req.body;
-
-    if (!contact_id || !template_name) {
-      res.status(400).json({ error: 'validation_error', message: 'contact_id and template_name required', code: 400 });
+    if (typeof contact_id !== 'string' || typeof template_name !== 'string' ||
+        (variables !== undefined && (typeof variables !== 'object' || variables === null || Array.isArray(variables))) ||
+        (idempotency_key !== undefined && typeof idempotency_key !== 'string')) {
+      res.status(400).json({ error: 'validation_error', message: 'Invalid template message payload', code: 400 });
+      return;
+    }
+    const contact = await contactService.getById(contact_id, agent.permissions.includes('admin') ? undefined : agent.id);
+    if (!contact) {
+      res.status(404).json({ error: 'contact_not_found', message: 'Contact not found', code: 404 });
       return;
     }
 
@@ -111,21 +122,34 @@ router.post('/send-template', requirePermission('send'), rateLimitMiddleware, as
 // GET /messages/:id/status
 router.get('/:id/status', requirePermission('read'), async (req: Request, res: Response) => {
   try {
+    const agent = (req as AuthenticatedRequest).agent;
     const supabase = (await import('../utils/supabase')).getSupabase();
-    const { data, error } = await supabase.from('messages').select('id, status, provider_message_id, updated_at').eq('id', req.params.id).single();
+    const { data, error } = await supabase.from('messages').select('id, status, provider_message_id, updated_at, conversation_id').eq('id', req.params.id).single();
     if (error || !data) {
       res.status(404).json({ error: 'message_not_found', message: 'Message not found', code: 404 });
       return;
     }
-    res.json(data);
+    const conversation = await conversationService.getById(data.conversation_id, agent.permissions.includes('admin') ? undefined : agent.id);
+    if (!conversation) {
+      res.status(404).json({ error: 'message_not_found', message: 'Message not found', code: 404 });
+      return;
+    }
+    const { conversation_id: _conversationId, ...safeData } = data;
+    res.json(safeData);
   } catch (err: any) {
-    res.status(500).json({ error: 'internal_error', message: err.message, code: 500 });
+    res.status(500).json({ error: 'internal_error', message: 'Unable to retrieve message status', code: 500 });
   }
 });
 
 // GET /messages/conversation/:conversationId
 router.get('/conversation/:conversationId', requirePermission('read'), async (req: Request, res: Response) => {
   try {
+    const agent = (req as AuthenticatedRequest).agent;
+    const conversation = await conversationService.getById(req.params.conversationId, agent.permissions.includes('admin') ? undefined : agent.id);
+    if (!conversation) {
+      res.status(404).json({ error: 'conversation_not_found', message: 'Conversation not found', code: 404 });
+      return;
+    }
     const messages = await msgService.getConversationMessages(req.params.conversationId);
     res.json({ data: messages });
   } catch (err: any) {
