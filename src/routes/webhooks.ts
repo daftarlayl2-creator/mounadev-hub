@@ -44,8 +44,7 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
     const inboundMessages = adapter.parseInbound(req.body);
     const deliveryIdempotencyKey = req.get('x-openwa-idempotency-key') || undefined;
 
-    // Persist inbound events before acknowledging delivery to OpenWA.
-    let failedBeforePersistence = false;
+    // Persist each inbound event before acknowledging its delivery to OpenWA.
     for (const msg of inboundMessages) {
       let persisted = false;
       try {
@@ -88,6 +87,7 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
           messageType: msg.type,
         });
         persisted = true;
+        if (!res.headersSent) res.status(200).json({ received: true, persisted: 1 });
 
         // An inbound message is not, by itself, explicit marketing consent.
 
@@ -173,19 +173,18 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
 
         logger.info('Inbound message processed', { from: '***' + msg.from.slice(-4), conversation: conversation.id });
       } catch (err: any) {
-        if (!persisted) failedBeforePersistence = true;
         logger.error('Failed to process inbound message', { error: err.message, from: '***' + msg.from.slice(-4) });
+        if (!persisted && !res.headersSent) {
+          res.status(500).json({ error: 'inbound_persistence_failed', message: 'Inbound event could not be persisted' });
+          return;
+        }
       }
     }
 
-    if (failedBeforePersistence) {
-      res.status(500).json({ error: 'inbound_persistence_failed', message: 'One or more inbound events could not be persisted' });
-      return;
-    }
-    res.status(200).json({ received: true, persisted: inboundMessages.length });
+    if (!res.headersSent) res.status(200).json({ received: true, persisted: 0 });
   } catch (err: any) {
     logger.error('Webhook processing error', { error: err.message });
-    res.status(500).json({ error: 'internal_error', message: 'Webhook processing failed', code: 500 });
+    if (!res.headersSent) res.status(500).json({ error: 'internal_error', message: 'Webhook processing failed', code: 500 });
   }
 });
 
