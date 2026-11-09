@@ -177,7 +177,7 @@ describe('agent API key header validation', () => {
     expect(isValidAgentApiKey('caissa_sami_0123456789abcdef0123456789abcdef')).toBe(true);
   });
 
-  it.each([undefined, null, '', 42, ['key'], 'has whitespace', 'line\\nbreak', 'x'.repeat(257)])(
+  it.each([undefined, null, '', 42, ['key'], 'has whitespace', 'line\nbreak', 'x'.repeat(257)])(
     'rejects malformed or oversized key input: %s',
     (value) => expect(isValidAgentApiKey(value)).toBe(false),
   );
