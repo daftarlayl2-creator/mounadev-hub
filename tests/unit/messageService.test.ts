@@ -51,11 +51,13 @@ function setupSupabase(options: { insertError?: Error | null; updateError?: Erro
         updateCalls.push(values);
         return { eq: vi.fn(async () => ({ error: options.updateError || null })) };
       }),
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
+      select: vi.fn(() => {
+        const query: any = {
+          eq: vi.fn(() => query),
           maybeSingle: vi.fn(async () => ({ data: null, error: options.lookupError || null })),
-        })),
-      })),
+        };
+        return query;
+      }),
     })),
   };
   vi.mocked(getSupabase).mockReturnValue(supabase as any);
