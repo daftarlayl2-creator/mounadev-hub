@@ -17,12 +17,12 @@ router.get('/', requirePermission('read'), async (req: Request, res: Response) =
       resource_type: req.query.resource_type as string,
       from_date: req.query.from_date as string,
       to_date: req.query.to_date as string,
-      limit: parseInt(req.query.limit as string) || 50,
-      offset: parseInt(req.query.offset as string) || 0,
+      limit: Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100),
+      offset: Math.min(Math.max(parseInt(req.query.offset as string) || 0, 0), 100000),
     });
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ error: 'internal_error', message: err.message, code: 500 });
+    res.status(500).json({ error: 'internal_error', message: 'Unable to retrieve audit records', code: 500 });
   }
 });
 
