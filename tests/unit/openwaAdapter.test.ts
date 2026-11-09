@@ -46,3 +46,12 @@ describe('OpenWA outbound transport outcome classification', () => {
       .rejects.toThrow('connection reset');
   });
 });
+
+
+describe('OpenWA message status lookup', () => {
+  it('fails explicitly when provider status cannot be verified', async () => {
+    const adapter = new OpenWAAdapter();
+    await expect(adapter.getStatus('provider-message-id'))
+      .rejects.toThrow('OpenWA message status lookup is not supported');
+  });
+});
