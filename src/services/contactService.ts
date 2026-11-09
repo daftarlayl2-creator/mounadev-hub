@@ -25,7 +25,8 @@ export class ContactService {
     let query = supabase.from('contacts').select('*', { count: 'exact' });
 
     if (params.search) {
-      query = query.or(`name.ilike.%${params.search}%,business_name.ilike.%${params.search}%,phone.ilike.%${params.search}%`);
+      const safeSearch = params.search.replace(/[(),.%]/g, ' ').trim().slice(0, 100);
+      if (safeSearch) query = query.or(`name.ilike.%${safeSearch}%,business_name.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%`);
     }
     if (params.business_type) {
       query = query.eq('business_type', params.business_type);
@@ -37,8 +38,8 @@ export class ContactService {
       query = query.eq('assigned_agent', params.assigned_agent);
     }
 
-    const limit = params.limit || 20;
-    const offset = params.offset || 0;
+    const limit = Math.min(Math.max(params.limit || 20, 1), 100);
+    const offset = Math.min(Math.max(params.offset || 0, 0), 100000);
     query = query.range(offset, offset + limit - 1).order('created_at', { ascending: false });
 
     const { data, error, count } = await query;
