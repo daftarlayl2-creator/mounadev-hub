@@ -58,7 +58,7 @@ router.post('/', requirePermission('write'), async (req: Request, res: Response)
       res.status(404).json({ error: 'contact_not_found', message: 'Contact not found', code: 404 });
       return;
     }
-    const conv = await conversationService.create(parsed.data.contact_id, parsed.data.channel, agent.id);
+    const conv = await conversationService.create(parsed.data.contact_id, parsed.data.channel, contact.assigned_agent || agent.id);
     await auditService.log({ agentId: agent.id, action: 'create_conversation', resourceType: 'conversation', resourceId: conv.id, ipAddress: req.ip });
     res.status(201).json(conv);
   } catch (err: any) {
