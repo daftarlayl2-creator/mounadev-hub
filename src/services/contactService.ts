@@ -91,7 +91,7 @@ export class ContactService {
 
   async optOut(id: string, reason: string, agentId: string, assignedAgent?: string): Promise<Contact> {
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    let query = supabase
       .from('contacts')
       .update({
         consent_status: 'opted_out',
@@ -100,8 +100,8 @@ export class ContactService {
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);
-    const scopedQuery = assignedAgent ? query.eq('assigned_agent', assignedAgent) : query;
-    const { data, error } = await scopedQuery.select().single();
+    if (assignedAgent) query = query.eq('assigned_agent', assignedAgent);
+    const { data, error } = await query.select().single();
     if (error) throw new Error(`Failed to opt out contact: ${error.message}`);
     logger.info('Contact opted out', { id, agent: agentId });
     return data;
