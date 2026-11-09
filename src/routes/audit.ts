@@ -8,8 +8,11 @@ router.use(authenticateAgent);
 
 router.get('/', requirePermission('read'), async (req: Request, res: Response) => {
   try {
+    const agent = (req as AuthenticatedRequest).agent;
+    // Agents may inspect only their own audit events; admin permission allows cross-agent filtering.
+    const requestedAgentId = req.query.agent_id as string | undefined;
     const result = await auditService.query({
-      agent_id: req.query.agent_id as string,
+      agent_id: agent.permissions.includes('admin') ? requestedAgentId : agent.id,
       action: req.query.action as string,
       resource_type: req.query.resource_type as string,
       from_date: req.query.from_date as string,
