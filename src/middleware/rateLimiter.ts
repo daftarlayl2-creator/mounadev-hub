@@ -11,8 +11,9 @@ interface RateLimitResult {
   reason?: string;
 }
 
-async function checkRateLimit(agentId: string, contactId?: string): Promise<RateLimitResult> {
+export async function checkRateLimit(agentId: string, contactId?: string): Promise<RateLimitResult> {
   const supabase = getSupabase();
+  await assertOutboundNotPaused(supabase);
   const now = new Date();
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -22,22 +23,22 @@ async function checkRateLimit(agentId: string, contactId?: string): Promise<Rate
     .from('messages')
     .select('*', { count: 'exact', head: true })
     .gte('created_at', oneHourAgo.toISOString());
+  if (globalHourlyError) throw new Error('Global hourly rate-limit query failed');
   if ((globalHourly || 0) >= config.rateLimits.globalHourly) {
     return { allowed: false, remaining: 0, resetAt: new Date(now.getTime() + 60 * 60 * 1000), reason: 'global_hourly' };
   }
 
-  if (globalHourlyError) throw new Error('Global hourly rate-limit query failed');
 
   // Check global daily
   const { count: globalDaily, error: globalDailyError } = await supabase
     .from('messages')
     .select('*', { count: 'exact', head: true })
     .gte('created_at', oneDayAgo.toISOString());
+  if (globalDailyError) throw new Error('Global daily rate-limit query failed');
   if ((globalDaily || 0) >= config.rateLimits.globalDaily) {
     return { allowed: false, remaining: 0, resetAt: new Date(now.getTime() + 24 * 60 * 60 * 1000), reason: 'global_daily' };
   }
 
-  if (globalDailyError) throw new Error('Global daily rate-limit query failed');
 
   // Check agent hourly
   const { count: agentHourly, error: agentHourlyError } = await supabase
@@ -46,11 +47,11 @@ async function checkRateLimit(agentId: string, contactId?: string): Promise<Rate
     .eq('sender_id', agentId)
     .eq('direction', 'outbound')
     .gte('created_at', oneHourAgo.toISOString());
+  if (agentHourlyError) throw new Error('Agent hourly rate-limit query failed');
   if ((agentHourly || 0) >= config.rateLimits.agentHourly) {
     return { allowed: false, remaining: 0, resetAt: new Date(now.getTime() + 60 * 60 * 1000), reason: 'agent_hourly' };
   }
 
-  if (agentHourlyError) throw new Error('Agent hourly rate-limit query failed');
 
   // Check agent daily
   const { count: agentDaily, error: agentDailyError } = await supabase
@@ -59,11 +60,11 @@ async function checkRateLimit(agentId: string, contactId?: string): Promise<Rate
     .eq('sender_id', agentId)
     .eq('direction', 'outbound')
     .gte('created_at', oneDayAgo.toISOString());
+  if (agentDailyError) throw new Error('Agent daily rate-limit query failed');
   if ((agentDaily || 0) >= config.rateLimits.agentDaily) {
     return { allowed: false, remaining: 0, resetAt: new Date(now.getTime() + 24 * 60 * 60 * 1000), reason: 'agent_daily' };
   }
 
-  if (agentDailyError) throw new Error('Agent daily rate-limit query failed');
 
   // Resolve a contact's conversations first; messages reference conversation_id, not contact_id.
   if (contactId) {
@@ -103,10 +104,27 @@ async function checkRateLimit(agentId: string, contactId?: string): Promise<Rate
   return { allowed: true, remaining, resetAt: new Date(now.getTime() + 24 * 60 * 60 * 1000) };
 }
 
+async function assertOutboundNotPaused(supabase: ReturnType<typeof getSupabase>): Promise<void> {
+  const { data, error } = await supabase
+    .from('audit_log')
+    .select('action, details, created_at')
+    .in('action', ['pause_outbound', 'resume_outbound'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error('Unable to verify emergency-stop state');
+  if (!data || data.action !== 'pause_outbound') return;
+
+  const duration = Number(data.details?.duration_minutes);
+  const durationMs = Number.isFinite(duration) && duration > 0 ? duration * 60 * 1000 : 60 * 60 * 1000;
+  const expiresAt = new Date(data.created_at).getTime() + durationMs;
+  if (Date.now() < expiresAt) throw new Error('outbound_paused');
+}
+
 export function rateLimitMiddleware(req: Request, res: Response, next: NextFunction): void {
   const agent = (req as any).agent;
   if (!agent) {
-    next();
+    res.status(401).json({ error: 'agent_not_authenticated', message: 'Authentication required', code: 401 });
     return;
   }
 
@@ -129,6 +147,10 @@ export function rateLimitMiddleware(req: Request, res: Response, next: NextFunct
     })
     .catch(err => {
       logger.error('Rate limit check failed; outbound request blocked', { error: err });
+      if (err instanceof Error && err.message === 'outbound_paused') {
+        res.status(423).json({ error: 'outbound_paused', message: 'Outbound messaging is temporarily paused', code: 423 });
+        return;
+      }
       res.status(503).json({
         error: 'rate_limit_unavailable',
         message: 'Unable to verify sending limits; retry later',
