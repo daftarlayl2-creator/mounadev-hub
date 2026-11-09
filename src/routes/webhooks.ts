@@ -119,7 +119,7 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
         // AI auto-reply (unless opt-out or complaint escalated)
         const isOptOut = automationService.isOptOutMessage(msg.content);
         const isComplaint = isComplaintDetected;
-        if (config.whatsappAgent.autoReply && !isOptOut && !isComplaint) {
+        if (config.whatsappAgent.autoReply && contact.consent_status !== 'opted_out' && !isOptOut && !isComplaint) {
           try {
             const limit = await checkRateLimit(waAgentId, contact.id);
             if (!limit.allowed) {
