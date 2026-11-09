@@ -46,9 +46,11 @@ export class ContactService {
     return { data: data || [], total: count || 0 };
   }
 
-  async getById(id: string): Promise<Contact | null> {
+  async getById(id: string, assignedAgent?: string): Promise<Contact | null> {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('contacts').select('*').eq('id', id).single();
+    let query = supabase.from('contacts').select('*').eq('id', id);
+    if (assignedAgent) query = query.eq('assigned_agent', assignedAgent);
+    const { data, error } = await query.single();
     if (error) return null;
     return data;
   }
