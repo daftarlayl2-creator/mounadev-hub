@@ -2,7 +2,7 @@
 import { Router, Request, Response } from 'express';
 import { contactService } from '../services/contactService';
 import { auditService } from '../services/auditService';
-import { contactSchema, contactUpdateSchema } from '../utils/validation';
+import { contactSchema, contactUpdateSchema, optOutSchema } from '../utils/validation';
 import { authenticateAgent, requirePermission, AuthenticatedRequest } from '../middleware/auth';
 import { logger } from '../utils/logger';
 
@@ -92,8 +92,13 @@ router.post('/:id/opt-out', requirePermission('write'), async (req: Request, res
       res.status(404).json({ error: 'contact_not_found', message: 'Contact not found', code: 404 });
       return;
     }
-    const contact = await contactService.optOut(req.params.id, typeof req.body.reason === 'string' ? req.body.reason.slice(0, 500) : 'agent_request', agent.id);
-    await auditService.log({ agentId: agent.id, action: 'mark_opt_out', resourceType: 'contact', resourceId: contact.id, details: { reason: req.body.reason }, ipAddress: req.ip });
+    const parsed = optOutSchema.strict().safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'validation_error', message: parsed.error.message, code: 400 });
+      return;
+    }
+    const contact = await contactService.optOut(req.params.id, parsed.data.reason, agent.id);
+    await auditService.log({ agentId: agent.id, action: 'mark_opt_out', resourceType: 'contact', resourceId: contact.id, details: { reason: parsed.data.reason }, ipAddress: req.ip });
     res.json(contact);
   } catch (err: any) {
     res.status(500).json({ error: 'internal_error', message: err.message, code: 500 });
