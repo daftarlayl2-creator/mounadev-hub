@@ -48,7 +48,7 @@ export function validateConfig(): void {
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
   }
-  if (process.env.NODE_ENV === 'production' && (process.env.WEBHOOK_SECRET || '').length < 32) {
-    throw new Error('WEBHOOK_SECRET must be at least 32 characters in production');
+  if (process.env.NODE_ENV === 'production' && ((process.env.WEBHOOK_SECRET || '').length < 32 || (process.env.WEBHOOK_SECRET || '').length > 255)) {
+    throw new Error('WEBHOOK_SECRET must be between 32 and 255 characters in production');
   }
 }
