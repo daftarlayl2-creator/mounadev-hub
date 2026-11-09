@@ -4,7 +4,6 @@ import { getSupabase } from '../utils/supabase';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { contactService } from '../services/contactService';
-import { AuthenticatedRequest } from './auth';
 
 interface RateLimitResult {
   allowed: boolean;
