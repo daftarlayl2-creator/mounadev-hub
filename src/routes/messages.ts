@@ -124,7 +124,7 @@ router.post('/send-template', requirePermission('send'), rateLimitMiddleware, as
 
     res.status(201).json(message);
   } catch (err: any) {
-    res.status(500).json({ error: 'internal_error', message: err.message, code: 500 });
+    res.status(500).json({ error: 'internal_error', message: 'Unable to process message request', code: 500 });
   }
 });
 
