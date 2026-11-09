@@ -73,8 +73,9 @@ export class OpenWAAdapter implements ChannelAdapter {
         caption: caption || '',
       });
       return { success: true, messageId: result.id || result.messageId || 'unknown' };
-    } catch (err: any) {
-      return { success: false, messageId: '', error: err.message };
+    } catch (_err: any) {
+      logger.error('OpenWA sendMedia failed', { to: this.maskPhone(to) });
+      return { success: false, messageId: '', error: 'OpenWA provider request failed' };
     }
   }
 
