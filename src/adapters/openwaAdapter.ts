@@ -104,9 +104,10 @@ export class OpenWAAdapter implements ChannelAdapter {
     }
   }
 
-  async getStatus(providerMessageId: string): Promise<MessageStatus> {
-    // OpenWA doesn't have a direct status endpoint; return 'sent' as default
-    return { status: 'sent' };
+  async getStatus(_providerMessageId: string): Promise<MessageStatus> {
+    // OpenWA exposes no verified status lookup in this adapter. Never fabricate
+    // delivery state: callers must treat unsupported reconciliation as unknown.
+    throw new Error('OpenWA message status lookup is not supported');
   }
 
   verifyWebhook(rawBody: Buffer | string | undefined, signature: string | undefined): boolean {
