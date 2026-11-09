@@ -17,7 +17,7 @@ export interface Conversation {
 export class ConversationService {
   async list(params: { contact_id?: string; status?: string; assigned_agent?: string; limit?: number; offset?: number }): Promise<{ data: any[]; total: number }> {
     const supabase = getSupabase();
-    let query = supabase.from('conversations').select('*, contacts(phone, name, business_name)', { count: 'exact' });
+    let query = supabase.from('conversations').select('*, contacts!inner(phone, name, business_name)', { count: 'exact' });
 
     if (params.contact_id) query = query.eq('contact_id', params.contact_id);
     if (params.status) query = query.eq('status', params.status);
@@ -41,7 +41,7 @@ export class ConversationService {
     const supabase = getSupabase();
     let query = supabase
       .from('conversations')
-      .select('*, contacts(phone, name, business_name, business_type)')
+      .select('*, contacts!inner(phone, name, business_name, business_type)')
       .eq('id', id);
     if (assignedAgent) {
       query = query.eq('assigned_agent', assignedAgent)
@@ -56,7 +56,7 @@ export class ConversationService {
     const supabase = getSupabase();
     let query = supabase
       .from('conversations')
-      .select('*')
+      .select('*, contacts!inner(assigned_agent)')
       .eq('contact_id', contactId)
       .eq('status', 'active');
     if (assignedAgent) {
