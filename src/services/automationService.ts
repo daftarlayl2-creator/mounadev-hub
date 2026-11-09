@@ -74,7 +74,7 @@ export class AutomationService {
     const explicitPhrases = [
       'stop', 'unsubscribe', 'opt out', 'opt-out',
       'arreter', 'arretez', 'desabonner',
-      'لا', 'وقف',
+      'لا ترسل', 'لا تراسل', 'لا تتصل', 'لا اريد', 'وقف',
     ];
     return explicitPhrases.some(phrase =>
       normalized === phrase ||
