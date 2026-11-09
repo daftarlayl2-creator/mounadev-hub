@@ -65,17 +65,37 @@ async function checkRateLimit(agentId: string, contactId?: string): Promise<Rate
 
   if (agentDailyError) throw new Error('Agent daily rate-limit query failed');
 
-  // Check contact daily (if contact specified)
+  // Resolve a contact's conversations first; messages reference conversation_id, not contact_id.
   if (contactId) {
-    const { count: contactDaily, error: contactDailyError } = await supabase
-      .from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('conversation_id', contactId) // simplified: use conversation_id as proxy
-      .eq('direction', 'outbound')
-      .gte('created_at', oneDayAgo.toISOString());
-    if (contactDailyError) throw new Error('Contact daily rate-limit query failed');
-    if ((contactDaily || 0) >= config.rateLimits.contactDaily) {
-      return { allowed: false, remaining: 0, resetAt: new Date(now.getTime() + 24 * 60 * 60 * 1000), reason: 'contact_daily' };
+    const { data: conversations, error: conversationsError } = await supabase
+      .from('conversations')
+      .select('id')
+      .eq('contact_id', contactId);
+    if (conversationsError) throw new Error('Contact conversation lookup failed');
+
+    const conversationIds = (conversations || []).map((conversation: { id: string }) => conversation.id);
+    if (conversationIds.length > 0) {
+      const { count: contactHourly, error: contactHourlyError } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .in('conversation_id', conversationIds)
+        .eq('direction', 'outbound')
+        .gte('created_at', oneHourAgo.toISOString());
+      if (contactHourlyError) throw new Error('Contact hourly rate-limit query failed');
+      if ((contactHourly || 0) >= config.rateLimits.contactHourly) {
+        return { allowed: false, remaining: 0, resetAt: new Date(now.getTime() + 60 * 60 * 1000), reason: 'contact_hourly' };
+      }
+
+      const { count: contactDaily, error: contactDailyError } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .in('conversation_id', conversationIds)
+        .eq('direction', 'outbound')
+        .gte('created_at', oneDayAgo.toISOString());
+      if (contactDailyError) throw new Error('Contact daily rate-limit query failed');
+      if ((contactDaily || 0) >= config.rateLimits.contactDaily) {
+        return { allowed: false, remaining: 0, resetAt: new Date(now.getTime() + 24 * 60 * 60 * 1000), reason: 'contact_daily' };
+      }
     }
   }
 
