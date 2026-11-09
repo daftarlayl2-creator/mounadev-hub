@@ -61,7 +61,7 @@ describe('requirePermission middleware', () => {
 import { AutomationService } from '../../src/services/automationService';
 import { createHmac } from 'crypto';
 import { verifyOpenWaSignature } from '../../src/adapters/openwaAdapter';
-import { contactSchema, contactUpdateSchema, conversationCreateSchema } from '../../src/utils/validation';
+import { contactSchema, contactUpdateSchema, conversationCreateSchema, templateSchema, templateMessageSchema } from '../../src/utils/validation';
 
 describe('security validation regressions', () => {
   const automation = new AutomationService();
@@ -88,6 +88,21 @@ describe('security validation regressions', () => {
 
   it('rejects client-controlled assignment on conversation creation', () => {
     const result = conversationCreateSchema.safeParse({ contact_id: '00000000-0000-4000-8000-000000000000', assigned_agent: 'mara' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects oversized template variable arrays', () => {
+    const result = templateSchema.safeParse({
+      name: 'welcome', content: 'Hello', variables: Array.from({ length: 101 }, (_, i) => `v${i}`),
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects oversized template variable maps', () => {
+    const variables = Object.fromEntries(Array.from({ length: 101 }, (_, i) => [`v${i}`, 'x']));
+    const result = templateMessageSchema.safeParse({
+      contact_id: '00000000-0000-4000-8000-000000000000', template_name: 'welcome', variables,
+    });
     expect(result.success).toBe(false);
   });
 });
