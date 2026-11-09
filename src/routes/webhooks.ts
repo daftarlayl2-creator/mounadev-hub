@@ -71,8 +71,7 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
           messageType: msg.type,
         });
 
-        // Auto-consent (inbound message implies consent)
-        await automationService.handleInboundConsent(contact.id);
+        // An inbound message is not, by itself, explicit marketing consent.
 
         // Check for opt-out keywords
         if (automationService.isOptOutMessage(msg.content)) {
