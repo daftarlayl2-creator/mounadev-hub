@@ -16,7 +16,7 @@ router.get('/', requirePermission('read'), async (req: Request, res: Response) =
     if (error) throw error;
     res.json({ data: data || [] });
   } catch (err: any) {
-    res.status(500).json({ error: 'internal_error', message: err.message, code: 500 });
+    res.status(500).json({ error: 'internal_error', message: 'Unable to process template request', code: 500 });
   }
 });
 
