@@ -26,7 +26,7 @@ router.get('/', requirePermission('read'), async (req: Request, res: Response) =
     });
     res.json(result);
   } catch (err: any) {
-    res.status(500).json({ error: 'internal_error', message: err.message, code: 500 });
+    res.status(500).json({ error: 'internal_error', message: 'Unable to process conversation request', code: 500 });
   }
 });
 
