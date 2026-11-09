@@ -112,6 +112,7 @@ router.post('/send-template', requirePermission('send'), rateLimitMiddleware, as
       templateName: template_name,
       variables,
       agentId: agent.id,
+      isAdmin: agent.permissions.includes('admin'),
     });
 
     await auditService.log({
