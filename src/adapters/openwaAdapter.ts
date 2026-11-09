@@ -4,6 +4,14 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
+export function verifyOpenWaSignature(rawBody: Buffer | string | undefined, signature: string | undefined, secret: string): boolean {
+  if (!rawBody || !signature || !secret) return false;
+  const expected = 'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex');
+  const suppliedBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  return suppliedBuffer.length === expectedBuffer.length && timingSafeEqual(suppliedBuffer, expectedBuffer);
+}
+
 export class OpenWAAdapter implements ChannelAdapter {
   private baseUrl: string;
   private session: string;
@@ -85,11 +93,7 @@ export class OpenWAAdapter implements ChannelAdapter {
   }
 
   verifyWebhook(rawBody: Buffer | string | undefined, signature: string | undefined): boolean {
-    if (!rawBody || !signature || !config.webhook.secret) return false;
-    const expected = 'sha256=' + createHmac('sha256', config.webhook.secret).update(rawBody).digest('hex');
-    const suppliedBuffer = Buffer.from(signature);
-    const expectedBuffer = Buffer.from(expected);
-    return suppliedBuffer.length === expectedBuffer.length && timingSafeEqual(suppliedBuffer, expectedBuffer);
+    return verifyOpenWaSignature(rawBody, signature, config.webhook.secret);
   }
 
   parseInbound(payload: any): InboundMessage[] {
