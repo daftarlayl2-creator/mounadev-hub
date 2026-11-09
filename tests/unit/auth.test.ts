@@ -46,6 +46,28 @@ describe('requirePermission middleware', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  it('rejects shared-resource management for agents with write but not manage', () => {
+    const req = makeRequest(['read', 'write']);
+    const res = makeResponse();
+    const next = vi.fn() as unknown as NextFunction;
+
+    requirePermission('manage')(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('allows shared-resource management for agents with manage permission', () => {
+    const req = makeRequest(['read', 'manage']);
+    const res = makeResponse();
+    const next = vi.fn() as unknown as NextFunction;
+
+    requirePermission('manage')(req, res, next);
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
   it('rejects when no authenticated agent is present', () => {
     const req = {} as Request;
     const res = makeResponse();
