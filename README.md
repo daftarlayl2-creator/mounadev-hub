@@ -22,7 +22,7 @@ Copy `supabase/migrations/001_initial_schema.sql` and run it in your Supabase Da
 ```bash
 npx ts-node scripts/seed-agents.ts
 ```
-This generates API keys for all 15 agents and saves them to `agent-api-keys.json`.
+This generates API keys for all 15 agents and saves them to `agent-api-keys.json` (or the path in `AGENT_API_KEYS_FILE`). The file is created exclusively with owner-only POSIX permissions where supported; an existing file is never overwritten. The script does not print API keys. Store the file in a protected local secret store, never commit or upload it, and back it up securely before rotating credentials. If the file already exists, deliberately move it to secure storage before running the seeder again.
 
 ### 5. Start the server
 ```bash
