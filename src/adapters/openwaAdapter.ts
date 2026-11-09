@@ -1,5 +1,6 @@
 // src/adapters/openwaAdapter.ts
 import { ChannelAdapter, SendResult, MessageStatus, InboundMessage } from './channelAdapter';
+import { timingSafeEqual } from 'crypto';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
@@ -79,9 +80,11 @@ export class OpenWAAdapter implements ChannelAdapter {
     return { status: 'sent' };
   }
 
-  verifyWebhook(payload: any, signature: string): boolean {
-    // OpenWA webhook verification (simplified)
-    return true;
+  verifyWebhook(_payload: any, signature: string): boolean {
+    if (!signature || !config.webhook.secret) return false;
+    const supplied = Buffer.from(signature);
+    const expected = Buffer.from(config.webhook.secret);
+    return supplied.length === expected.length && timingSafeEqual(supplied, expected);
   }
 
   parseInbound(payload: any): InboundMessage[] {
