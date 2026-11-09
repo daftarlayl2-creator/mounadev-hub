@@ -80,10 +80,20 @@ router.get('/agents', requirePermission('read'), async (_req: Request, res: Resp
 // POST /admin/test-reply — generate a test AI reply without sending
 router.post('/test-reply', requirePermission('admin'), async (req: Request, res: Response) => {
   try {
-    const { agent_id, message, contact_name, business_name } = req.body;
+    const parsed = z.object({
+      agent_id: z.string().min(1).max(64).optional(),
+      message: z.string().min(1).max(4000).default('Bonjour'),
+      contact_name: z.string().max(100).optional(),
+      business_name: z.string().max(200).optional(),
+    }).strict().safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'validation_error', message: parsed.error.message, code: 400 });
+      return;
+    }
+    const { agent_id, message, contact_name, business_name } = parsed.data;
     const result = await aiReplyService.generateReply({
       agentId: agent_id || config.whatsappAgent.agentId,
-      customerMessage: message || 'Bonjour',
+      customerMessage: message,
       contactName: contact_name,
       businessName: business_name,
     });
