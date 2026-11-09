@@ -38,7 +38,7 @@ const queuedMessage = {
   updated_at: new Date().toISOString(),
 };
 
-function setupSupabase(options: { insertError?: Error | null; updateError?: Error | null; lookupError?: Error | null } = {}) {
+function setupSupabase(options: { insertError?: Error | null; updateError?: Error | null; updateThrows?: boolean; lookupError?: Error | null } = {}) {
   const updateCalls: Record<string, unknown>[] = [];
   const supabase = {
     from: vi.fn(() => ({
@@ -49,7 +49,10 @@ function setupSupabase(options: { insertError?: Error | null; updateError?: Erro
       })),
       update: vi.fn((values: Record<string, unknown>) => {
         updateCalls.push(values);
-        return { eq: vi.fn(async () => ({ error: options.updateError || null })) };
+        return { eq: vi.fn(async () => {
+          if (options.updateThrows) throw new Error('database connection lost');
+          return { error: options.updateError || null };
+        }) };
       }),
       select: vi.fn(() => {
         const query: any = {
@@ -90,6 +93,18 @@ describe('MessageService outbound outcome handling', () => {
     expect(result.provider_message_id).toBe('provider-1');
     expect(updateCalls).toHaveLength(1);
     expect(updateCalls[0]).toMatchObject({ status: 'sent', provider_message_id: 'provider-1' });
+  });
+
+  it('returns the confirmed provider success when the status update throws', async () => {
+    const { updateCalls } = setupSupabase({ updateThrows: true });
+    const adapter = { sendText: vi.fn().mockResolvedValue({ success: true, messageId: 'provider-2' }) };
+    const service = new MessageService(adapter as any);
+
+    const result = await service.send({ contactId: contact.id, content: 'Hello', agentId: 'agent-1' });
+
+    expect(result.status).toBe('sent');
+    expect(result.provider_message_id).toBe('provider-2');
+    expect(updateCalls).toHaveLength(1);
   });
 
   it('does not label an ambiguous transport exception as a confirmed provider failure', async () => {
