@@ -37,28 +37,31 @@ export class MessageService {
     templateName?: string;
     variables?: Record<string, string>;
     agentId: string;
+    isAdmin?: boolean;
   }): Promise<Message> {
-    const { contactId, content, messageType = 'text', idempotencyKey, templateName, variables, agentId } = params;
+    const { contactId, content, messageType = 'text', idempotencyKey, templateName, variables, agentId, isAdmin = false } = params;
+    const assignedAgentScope = isAdmin ? undefined : agentId;
 
-    // 1. Check idempotency
+    // Resolve and authorize the contact before checking idempotency. The service
+    // must remain safe even when called outside the HTTP route.
+    const contact = await contactService.getById(contactId, assignedAgentScope);
+    if (!contact) throw new Error('contact_not_found');
+
+    // Idempotency is scoped to this sender and this authorized contact/conversation.
     if (idempotencyKey) {
-      const existing = await this.getByIdempotencyKey(idempotencyKey);
+      const existing = await this.getByIdempotencyKey(idempotencyKey, agentId, contactId, assignedAgentScope);
       if (existing) {
-        logger.info('Duplicate message detected, returning existing', { idempotencyKey });
+        logger.info('Duplicate message detected, returning existing', { agentId });
         return existing;
       }
     }
 
-    // 2. Get contact
-    const contact = await contactService.getById(contactId);
-    if (!contact) throw new Error('contact_not_found');
-
-    // 3. Check contact permission
+    // Check contact permission
     const perm = await contactService.checkPermission(contactId);
     if (!perm.allowed) throw new Error(perm.reason!);
 
     // 4. Get or create conversation
-    let conversation = await conversationService.getByContact(contactId);
+    let conversation = await conversationService.getByContact(contactId, assignedAgentScope);
     if (!conversation) {
       conversation = await conversationService.create(contactId, 'whatsapp', contact.assigned_agent || agentId);
     }
@@ -129,14 +132,24 @@ export class MessageService {
     }
   }
 
-  async getByIdempotencyKey(key: string): Promise<Message | null> {
+  async getByIdempotencyKey(
+    key: string,
+    senderId: string,
+    contactId: string,
+    assignedAgent?: string,
+  ): Promise<Message | null> {
     const supabase = (await import('../utils/supabase')).getSupabase();
     const { data, error } = await supabase
       .from('messages')
       .select('*')
       .eq('idempotency_key', key)
-      .single();
-    if (error) return null;
+      .eq('sender_id', senderId)
+      .maybeSingle();
+    if (error || !data) return null;
+
+    // A key collision from another contact must never disclose that message.
+    const conversation = await conversationService.getById(data.conversation_id, assignedAgent);
+    if (!conversation || conversation.contact_id !== contactId) return null;
     return data;
   }
 
