@@ -80,24 +80,24 @@ export class ConversationService {
     return data;
   }
 
-  async update(id: string, updates: Partial<Conversation>): Promise<Conversation> {
+  async update(id: string, updates: Partial<Conversation>, assignedAgent?: string): Promise<Conversation> {
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    let query = supabase
       .from('conversations')
       .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
+      .eq('id', id);
+    if (assignedAgent) query = query.eq('assigned_agent', assignedAgent);
+    const { data, error } = await query.select().single();
     if (error) throw new Error(`Failed to update conversation: ${error.message}`);
     return data;
   }
 
-  async close(id: string): Promise<Conversation> {
-    return this.update(id, { status: 'closed' });
+  async close(id: string, assignedAgent?: string): Promise<Conversation> {
+    return this.update(id, { status: 'closed' }, assignedAgent);
   }
 
-  async escalate(id: string, agentId: string): Promise<Conversation> {
-    return this.update(id, { status: 'escalated', assigned_agent: agentId });
+  async escalate(id: string, agentId: string, assignedAgent?: string): Promise<Conversation> {
+    return this.update(id, { status: 'escalated', assigned_agent: agentId }, assignedAgent);
   }
 
   async isWindowExpired(id: string): Promise<boolean> {
