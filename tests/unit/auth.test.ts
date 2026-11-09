@@ -1,6 +1,6 @@
 // tests/unit/auth.test.ts
 import { describe, it, expect, vi } from 'vitest';
-import { requirePermission, AuthenticatedRequest } from '../../src/middleware/auth';
+import { requirePermission, AuthenticatedRequest, isValidAgentApiKey } from '../../src/middleware/auth';
 import { Request, Response, NextFunction } from 'express';
 
 function makeRequest(permissions: string[] = []): Request {
@@ -169,4 +169,16 @@ describe('OpenWA delivery idempotency keys', () => {
   it('leaves idempotency disabled when the provider supplies no delivery key', () => {
     expect(getMessageIdempotencyKey(undefined, 'message-a', 0)).toBeUndefined();
   });
+});
+
+
+describe('agent API key header validation', () => {
+  it('accepts a well-formed opaque agent key', () => {
+    expect(isValidAgentApiKey('caissa_sami_0123456789abcdef0123456789abcdef')).toBe(true);
+  });
+
+  it.each([undefined, null, '', 42, ['key'], 'has whitespace', 'line\\nbreak', 'x'.repeat(257)])(
+    'rejects malformed or oversized key input: %s',
+    (value) => expect(isValidAgentApiKey(value)).toBe(false),
+  );
 });
