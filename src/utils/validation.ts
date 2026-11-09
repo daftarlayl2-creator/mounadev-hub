@@ -44,13 +44,20 @@ export const messageSchema = z.object({
   media_url: z.string().url().optional(),
 }).strict();
 
+export const templateMessageSchema = z.object({
+  contact_id: z.string().uuid(),
+  template_name: z.string().min(1).max(100),
+  variables: z.record(z.string()).optional(),
+  idempotency_key: z.string().max(255).optional(),
+}).strict();
+
 export const templateSchema = z.object({
   name: z.string().min(1).max(100).regex(/^[a-z0-9_]+$/, 'Template name must be lowercase alphanumeric with underscores'),
   language: z.string().length(2).default('fr'),
   category: z.enum(['marketing', 'utility', 'authentication']).default('marketing'),
   content: z.string().min(1).max(1024),
   variables: z.array(z.string()).default([]),
-});
+}).strict();
 
 export const optOutSchema = z.object({
   reason: z.string().min(1).max(500),
