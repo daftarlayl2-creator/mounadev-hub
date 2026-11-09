@@ -22,6 +22,7 @@ export async function checkRateLimit(agentId: string, contactId?: string): Promi
   const { count: globalHourly, error: globalHourlyError } = await supabase
     .from('messages')
     .select('*', { count: 'exact', head: true })
+    .eq('direction', 'outbound')
     .gte('created_at', oneHourAgo.toISOString());
   if (globalHourlyError) throw new Error('Global hourly rate-limit query failed');
   if ((globalHourly || 0) >= config.rateLimits.globalHourly) {
@@ -33,6 +34,7 @@ export async function checkRateLimit(agentId: string, contactId?: string): Promi
   const { count: globalDaily, error: globalDailyError } = await supabase
     .from('messages')
     .select('*', { count: 'exact', head: true })
+    .eq('direction', 'outbound')
     .gte('created_at', oneDayAgo.toISOString());
   if (globalDailyError) throw new Error('Global daily rate-limit query failed');
   if ((globalDaily || 0) >= config.rateLimits.globalDaily) {
