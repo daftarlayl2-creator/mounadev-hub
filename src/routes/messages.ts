@@ -5,7 +5,7 @@ import { OpenWAAdapter } from '../adapters/openwaAdapter';
 import { contactService } from '../services/contactService';
 import { conversationService } from '../services/conversationService';
 import { auditService } from '../services/auditService';
-import { messageSchema } from '../utils/validation';
+import { messageSchema, templateMessageSchema } from '../utils/validation';
 import { authenticateAgent, requirePermission, AuthenticatedRequest } from '../middleware/auth';
 import { rateLimitMiddleware } from '../middleware/rateLimiter';
 import { logger } from '../utils/logger';
@@ -81,13 +81,12 @@ router.post('/send', requirePermission('send'), rateLimitMiddleware, async (req:
 router.post('/send-template', requirePermission('send'), rateLimitMiddleware, async (req: Request, res: Response) => {
   try {
     const agent = (req as AuthenticatedRequest).agent;
-    const { contact_id, template_name, variables, idempotency_key } = req.body;
-    if (typeof contact_id !== 'string' || typeof template_name !== 'string' ||
-        (variables !== undefined && (typeof variables !== 'object' || variables === null || Array.isArray(variables))) ||
-        (idempotency_key !== undefined && typeof idempotency_key !== 'string')) {
-      res.status(400).json({ error: 'validation_error', message: 'Invalid template message payload', code: 400 });
+    const parsed = templateMessageSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'validation_error', message: parsed.error.message, code: 400 });
       return;
     }
+    const { contact_id, template_name, variables, idempotency_key } = parsed.data;
     const contact = await contactService.getById(contact_id, agent.permissions.includes('admin') ? undefined : agent.id);
     if (!contact) {
       res.status(404).json({ error: 'contact_not_found', message: 'Contact not found', code: 404 });
