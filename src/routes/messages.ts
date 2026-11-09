@@ -109,7 +109,7 @@ router.post('/send-template', requirePermission('send'), rateLimitMiddleware, as
 });
 
 // GET /messages/:id/status
-router.get('/:id/status', async (req: Request, res: Response) => {
+router.get('/:id/status', requirePermission('read'), async (req: Request, res: Response) => {
   try {
     const supabase = (await import('../utils/supabase')).getSupabase();
     const { data, error } = await supabase.from('messages').select('id, status, provider_message_id, updated_at').eq('id', req.params.id).single();
@@ -124,7 +124,7 @@ router.get('/:id/status', async (req: Request, res: Response) => {
 });
 
 // GET /messages/conversation/:conversationId
-router.get('/conversation/:conversationId', async (req: Request, res: Response) => {
+router.get('/conversation/:conversationId', requirePermission('read'), async (req: Request, res: Response) => {
   try {
     const messages = await msgService.getConversationMessages(req.params.conversationId);
     res.json({ data: messages });
