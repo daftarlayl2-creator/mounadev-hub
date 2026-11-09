@@ -9,7 +9,7 @@ import { logger } from '../utils/logger';
 const router = Router();
 router.use(authenticateAgent);
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', requirePermission('read'), async (req: Request, res: Response) => {
   try {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('message_templates').select('*').order('created_at', { ascending: false });
