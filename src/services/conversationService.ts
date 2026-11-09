@@ -44,13 +44,15 @@ export class ConversationService {
     return data;
   }
 
-  async getByContact(contactId: string): Promise<any | null> {
+  async getByContact(contactId: string, assignedAgent?: string): Promise<any | null> {
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    let query = supabase
       .from('conversations')
       .select('*')
       .eq('contact_id', contactId)
-      .eq('status', 'active')
+      .eq('status', 'active');
+    if (assignedAgent) query = query.eq('assigned_agent', assignedAgent);
+    const { data, error } = await query
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
