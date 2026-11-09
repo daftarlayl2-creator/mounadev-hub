@@ -40,6 +40,7 @@ const queuedMessage = {
 
 function setupSupabase(options: { insertError?: Error | null; updateError?: Error | null; updateThrows?: boolean; lookupError?: Error | null } = {}) {
   const updateCalls: Record<string, unknown>[] = [];
+  const lookupFilters: Array<[string, unknown]> = [];
   const supabase = {
     from: vi.fn(() => ({
       insert: vi.fn(() => ({
@@ -56,7 +57,7 @@ function setupSupabase(options: { insertError?: Error | null; updateError?: Erro
       }),
       select: vi.fn(() => {
         const query: any = {
-          eq: vi.fn(() => query),
+          eq: vi.fn((column: string, value: unknown) => { lookupFilters.push([column, value]); return query; }),
           maybeSingle: vi.fn(async () => ({ data: null, error: options.lookupError || null })),
         };
         return query;
@@ -64,7 +65,7 @@ function setupSupabase(options: { insertError?: Error | null; updateError?: Erro
     })),
   };
   vi.mocked(getSupabase).mockReturnValue(supabase as any);
-  return { supabase, updateCalls };
+  return { supabase, updateCalls, lookupFilters };
 }
 
 function setupServices() {
@@ -121,10 +122,15 @@ describe('MessageService outbound outcome handling', () => {
   });
 
   it('blocks a send when the idempotency lookup itself fails', async () => {
-    setupSupabase({ lookupError: new Error('database unavailable') });
+    const { lookupFilters } = setupSupabase({ lookupError: new Error('database unavailable') });
     const service = new MessageService({ sendText: vi.fn() } as any);
 
     await expect(service.getByIdempotencyKey('request-1', 'agent-1', contact.id))
       .rejects.toThrow('Unable to verify message idempotency; send blocked');
+    expect(lookupFilters).toEqual([
+      ['direction', 'outbound'],
+      ['idempotency_key', 'request-1'],
+      ['sender_id', 'agent-1'],
+    ]);
   });
 });
