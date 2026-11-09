@@ -46,6 +46,7 @@ router.post('/send', requirePermission('send'), rateLimitMiddleware, async (req:
       idempotencyKey: idempotency_key,
       templateName: template_name,
       agentId: agent.id,
+      isAdmin: agent.permissions.includes('admin'),
     });
 
     await auditService.log({
