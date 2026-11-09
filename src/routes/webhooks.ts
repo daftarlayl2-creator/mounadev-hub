@@ -20,7 +20,7 @@ interface PersistedInbound {
   conversation: Awaited<ReturnType<typeof conversationService.getByContact>>;
 }
 
-function getMessageIdempotencyKey(deliveryKey: string | undefined, messageId: string | undefined, index: number): string | undefined {
+export function getMessageIdempotencyKey(deliveryKey: string | undefined, messageId: string | undefined, index: number): string | undefined {
   if (!deliveryKey) return undefined;
   return messageId ? `${deliveryKey}:${messageId}` : `${deliveryKey}:${index}`;
 }
