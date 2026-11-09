@@ -47,7 +47,7 @@ export const messageSchema = z.object({
 export const templateMessageSchema = z.object({
   contact_id: z.string().uuid(),
   template_name: z.string().min(1).max(100),
-  variables: z.record(z.string()).optional(),
+  variables: z.record(z.string(), z.string()).optional(),
   idempotency_key: z.string().max(255).optional(),
 }).strict();
 
