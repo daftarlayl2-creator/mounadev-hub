@@ -16,7 +16,7 @@ export interface AuthenticatedRequest extends Request {
 export function isValidAgentApiKey(value: unknown): value is string {
   // Generated agent keys are opaque strings; reject malformed or oversized headers
   // before performing expensive bcrypt comparisons.
-  return typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\\s\\0-\\x1f\\x7f]/.test(value);
+  return typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\s\0-\x1f\x7f]/.test(value);
 }
 
 export async function authenticateAgent(req: Request, res: Response, next: NextFunction): Promise<void> {
