@@ -179,28 +179,74 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
             continue;
           }
 
-          const sendResult = await adapter.sendText(contact.phone, aiResult.reply);
-          if (!sendResult.success) {
-            logger.error('AI auto-reply send failed', { error: sendResult.error });
+          // Re-check current opt-out state and emergency-stop/rate limits after AI
+          // generation, immediately before creating the provider submission.
+          const currentContact = await contactService.getById(contact.id);
+          if (!currentContact || currentContact.consent_status === 'opted_out') {
+            logger.info('AI auto-reply suppressed by current contact state', { contact: contact.id });
+            continue;
+          }
+          const finalLimit = await checkRateLimit(waAgentId, currentContact.id);
+          if (!finalLimit.allowed) {
+            logger.warn('Webhook auto-reply blocked at final dispatch gate', { agent: waAgentId, reason: finalLimit.reason });
             continue;
           }
 
-          const { error: insertError } = await supabase.from('messages').insert({
+          // Persist a queued record before provider I/O. This makes the attempt
+          // visible to rate limiting and leaves an auditable record if transport
+          // outcome becomes ambiguous.
+          const { data: queuedMessage, error: queueError } = await supabase.from('messages').insert({
             conversation_id: conversation.id,
             direction: 'outbound',
             sender_type: 'agent',
             sender_id: waAgentId,
             content: aiResult.reply,
             message_type: 'text',
-            status: 'sent',
-            provider_message_id: sendResult.messageId,
-          });
-          if (insertError) {
-            logger.error('AI auto-reply sent but message record could not be stored', { conversation: conversation.id });
+            status: 'queued',
+          }).select('id').single();
+          if (queueError || !queuedMessage) {
+            logger.error('AI auto-reply blocked because queue record could not be persisted', { conversation: conversation.id });
             continue;
           }
 
-          await conversationService.update(conversation.id, { last_message_at: new Date().toISOString() });
+          let sendResult;
+          try {
+            sendResult = await adapter.sendText(currentContact.phone, aiResult.reply);
+          } catch (_transportError) {
+            // The provider may have accepted the request before the connection
+            // failed. Never mark this as retryable or send it again automatically.
+            const { error: annotateError } = await supabase.from('messages')
+              .update({ error_message: 'send_outcome_unknown', updated_at: new Date().toISOString() })
+              .eq('id', queuedMessage.id);
+            if (annotateError) {
+              logger.error('AI auto-reply outcome unknown and could not be annotated', { messageId: queuedMessage.id });
+            }
+            logger.error('AI auto-reply transport outcome unknown; automatic retry is unsafe', { messageId: queuedMessage.id });
+            continue;
+          }
+
+          if (!sendResult.success) {
+            const { error: rejectUpdateError } = await supabase.from('messages')
+              .update({ status: 'failed', error_message: 'provider_rejected', updated_at: new Date().toISOString() })
+              .eq('id', queuedMessage.id);
+            if (rejectUpdateError) {
+              logger.error('AI auto-reply provider rejection could not be persisted', { messageId: queuedMessage.id });
+            }
+            logger.error('AI auto-reply provider rejected the message', { messageId: queuedMessage.id });
+            continue;
+          }
+
+          const sentAt = new Date().toISOString();
+          const { error: sentUpdateError } = await supabase.from('messages')
+            .update({ status: 'sent', provider_message_id: sendResult.messageId, updated_at: sentAt })
+            .eq('id', queuedMessage.id);
+          if (sentUpdateError) {
+            // Provider acceptance is known; retain the queued record for manual
+            // reconciliation rather than changing it to failed.
+            logger.error('AI auto-reply accepted by provider but status could not be persisted', { messageId: queuedMessage.id });
+          }
+
+          await conversationService.update(conversation.id, { last_message_at: sentAt });
           logger.info('AI auto-reply sent', { conversation: conversation.id, agent: waAgentId });
         } catch (aiErr: any) {
           logger.error('AI auto-reply error', { error: aiErr.message });
