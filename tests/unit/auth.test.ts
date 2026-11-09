@@ -59,6 +59,8 @@ describe('requirePermission middleware', () => {
 });
 
 import { AutomationService } from '../../src/services/automationService';
+import { createHmac } from 'crypto';
+import { verifyOpenWaSignature } from '../../src/adapters/openwaAdapter';
 import { contactSchema, contactUpdateSchema, conversationCreateSchema } from '../../src/utils/validation';
 
 describe('security validation regressions', () => {
@@ -87,5 +89,25 @@ describe('security validation regressions', () => {
   it('rejects client-controlled assignment on conversation creation', () => {
     const result = conversationCreateSchema.safeParse({ contact_id: '00000000-0000-4000-8000-000000000000', assigned_agent: 'mara' });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('OpenWA webhook HMAC verification', () => {
+  const secret = 'test-webhook-secret-with-sufficient-entropy';
+  const body = Buffer.from('{"event":"message.received","data":{"from":"212600000000","body":"hello"}}');
+  const signature = 'sha256=' + createHmac('sha256', secret).update(body).digest('hex');
+
+  it('accepts a valid provider HMAC signature over the raw body', () => {
+    expect(verifyOpenWaSignature(body, signature, secret)).toBe(true);
+  });
+
+  it('rejects altered payload bytes', () => {
+    expect(verifyOpenWaSignature(Buffer.from(body.toString() + ' '), signature, secret)).toBe(false);
+  });
+
+  it('rejects missing, malformed, or wrong-secret signatures', () => {
+    expect(verifyOpenWaSignature(body, undefined, secret)).toBe(false);
+    expect(verifyOpenWaSignature(body, signature, 'another-secret')).toBe(false);
+    expect(verifyOpenWaSignature(body, 'sha256=bad', secret)).toBe(false);
   });
 });
