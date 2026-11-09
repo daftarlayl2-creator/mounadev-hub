@@ -25,7 +25,7 @@ export class ContactService {
     let query = supabase.from('contacts').select('*', { count: 'exact' });
 
     if (params.search) {
-      const safeSearch = params.search.replace(/[(),.%]/g, ' ').trim().slice(0, 100);
+      const safeSearch = params.search.replace(/[^\\p{L}\\p{N}\\s+@_-]/gu, ' ').trim().slice(0, 100);
       if (safeSearch) query = query.or(`name.ilike.%${safeSearch}%,business_name.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%`);
     }
     if (params.business_type) {
