@@ -126,3 +126,25 @@ describe('OpenWA webhook HMAC verification', () => {
     expect(verifyOpenWaSignature(body, 'sha256=bad', secret)).toBe(false);
   });
 });
+
+
+import { getMessageIdempotencyKey } from '../../src/routes/webhooks';
+
+describe('OpenWA delivery idempotency keys', () => {
+  it('creates distinct stable keys for messages in the same provider delivery', () => {
+    const first = getMessageIdempotencyKey('delivery-1', 'message-a', 0);
+    const second = getMessageIdempotencyKey('delivery-1', 'message-b', 1);
+    expect(first).toBe('delivery-1:message-a');
+    expect(second).toBe('delivery-1:message-b');
+    expect(first).not.toBe(second);
+  });
+
+  it('uses a stable per-position suffix when a provider message ID is absent', () => {
+    expect(getMessageIdempotencyKey('delivery-1', undefined, 0)).toBe('delivery-1:0');
+    expect(getMessageIdempotencyKey('delivery-1', undefined, 1)).toBe('delivery-1:1');
+  });
+
+  it('leaves idempotency disabled when the provider supplies no delivery key', () => {
+    expect(getMessageIdempotencyKey(undefined, 'message-a', 0)).toBeUndefined();
+  });
+});
