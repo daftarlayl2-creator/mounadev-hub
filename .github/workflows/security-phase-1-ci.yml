@@ -24,7 +24,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Regenerate lockfile for security-upgraded dependencies
-        run: npm cache clean --force && rm -rf node_modules package-lock.json && npm install --package-lock-only --ignore-scripts --no-audit --no-fund --legacy-peer-deps
+        run: npm cache clean --force && rm -rf node_modules package-lock.json && npm install --package-lock-only --ignore-scripts --no-audit --no-fund
       - name: Commit regenerated dependency lockfile
         run: |
           if ! git diff --quiet -- package-lock.json; then
