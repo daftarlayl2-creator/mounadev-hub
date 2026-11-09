@@ -33,11 +33,6 @@ router.post('/send', requirePermission('send'), rateLimitMiddleware, async (req:
       res.status(404).json({ error: 'contact_not_found', message: 'Contact not found', code: 404 });
       return;
     }
-    const activeConversation = await conversationService.getByContact(
-      contact_id,
-      agent.permissions.includes('admin') ? undefined : agent.id,
-    );
-
     const message = await msgService.send({
       contactId: contact_id,
       content,
@@ -97,11 +92,6 @@ router.post('/send-template', requirePermission('send'), rateLimitMiddleware, as
       res.status(404).json({ error: 'contact_not_found', message: 'Contact not found', code: 404 });
       return;
     }
-    const activeConversation = await conversationService.getByContact(
-      contact_id,
-      agent.permissions.includes('admin') ? undefined : agent.id,
-    );
-
     const message = await msgService.send({
       contactId: contact_id,
       content: `Template: ${template_name}`,
