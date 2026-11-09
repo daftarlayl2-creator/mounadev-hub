@@ -32,7 +32,7 @@ router.post('/pause-outbound', requirePermission('admin'), async (req: Request, 
     logger.warn('Outbound messaging paused', { agent: agent.id, reason, duration_minutes });
     res.json({ paused: true, reason, duration_minutes, paused_by: agent.id });
   } catch (err: any) {
-    res.status(500).json({ error: 'internal_error', message: err.message, code: 500 });
+    res.status(500).json({ error: 'internal_error', message: 'Unable to process administrative request', code: 500 });
   }
 });
 
