@@ -174,6 +174,7 @@ export class MessageService {
     const { data, error } = await supabase
       .from('messages')
       .select('*')
+      .eq('direction', 'outbound')
       .eq('idempotency_key', key)
       .eq('sender_id', senderId)
       .maybeSingle();
