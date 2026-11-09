@@ -103,7 +103,7 @@ export class ContactService {
       .select()
       .single();
     if (error) throw new Error(`Failed to opt out contact: ${error.message}`);
-    logger.info('Contact opted out', { id, reason, agent: agentId });
+    logger.info('Contact opted out', { id, agent: agentId });
     return data;
   }
 
