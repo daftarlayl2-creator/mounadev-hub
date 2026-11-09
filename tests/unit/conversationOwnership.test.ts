@@ -11,6 +11,7 @@ function setupQuery() {
     eq: vi.fn((column: string, value: unknown) => { filters.push([column, value]); return query; }),
     range: vi.fn(() => query),
     order: vi.fn(() => query),
+    limit: vi.fn(() => query),
     single: vi.fn(async () => ({ data: null, error: null })),
     then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) =>
       Promise.resolve({ data: [], error: null, count: 0 }).then(resolve, reject),
