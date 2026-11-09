@@ -72,14 +72,20 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
 
         if (idempotencyKey) {
           const { data: duplicate, error } = await supabase
-            .from('messages').select('id').eq('idempotency_key', idempotencyKey).maybeSingle();
+            .from('messages').select('id')
+            .eq('direction', 'inbound')
+            .eq('idempotency_key', idempotencyKey)
+            .maybeSingle();
           if (error) throw new Error('Unable to verify inbound delivery idempotency');
           if (duplicate) continue;
         }
 
         if (msg.messageId) {
           const { data: duplicate, error } = await supabase
-            .from('messages').select('id').eq('provider_message_id', msg.messageId).maybeSingle();
+            .from('messages').select('id')
+            .eq('direction', 'inbound')
+            .eq('provider_message_id', msg.messageId)
+            .maybeSingle();
           if (error) throw new Error('Unable to verify inbound message idempotency');
           if (duplicate) continue;
         }
