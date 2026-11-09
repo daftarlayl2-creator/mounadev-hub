@@ -1,6 +1,5 @@
 // src/routes/webhooks.ts
 import { Router, Request, Response } from 'express';
-import { timingSafeEqual } from 'crypto';
 import { contactService } from '../services/contactService';
 import { conversationService } from '../services/conversationService';
 import { MessageService } from '../services/messageService';
@@ -16,12 +15,6 @@ const router = Router();
 const adapter = new OpenWAAdapter();
 const msgService = new MessageService(adapter);
 
-function safeSecretEqual(provided: string | undefined, expected: string): boolean {
-  if (!provided || !expected) return false;
-  const providedBuffer = Buffer.from(provided);
-  const expectedBuffer = Buffer.from(expected);
-  return providedBuffer.length === expectedBuffer.length && timingSafeEqual(providedBuffer, expectedBuffer);
-}
 
 // GET /webhooks/whatsapp — Meta verification
 router.get('/whatsapp', (req: Request, res: Response) => {
@@ -29,7 +22,7 @@ router.get('/whatsapp', (req: Request, res: Response) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  if (mode === 'subscribe' && safeSecretEqual(typeof token === 'string' ? token : undefined, config.webhook.secret)) {
+  if (mode === 'subscribe' && typeof token === 'string' && token === config.webhook.secret) {
     logger.info('Webhook verified');
     res.status(200).send(challenge);
   } else {
@@ -40,10 +33,11 @@ router.get('/whatsapp', (req: Request, res: Response) => {
 // POST /webhooks/whatsapp — Inbound messages
 router.post('/whatsapp', async (req: Request, res: Response) => {
   try {
-    // OpenWA must be configured to send this shared secret header. Do not accept unauthenticated events.
-    const suppliedSecret = req.get('x-webhook-secret') || undefined;
-    if (!safeSecretEqual(suppliedSecret, config.webhook.secret)) {
-      res.status(401).json({ error: 'invalid_webhook_authentication' });
+    // OpenWA signs the exact JSON request body with HMAC-SHA256.
+    const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
+    const signature = req.get('x-openwa-signature') || undefined;
+    if (!adapter.verifyWebhook(rawBody, signature)) {
+      res.status(401).json({ error: 'invalid_webhook_signature' });
       return;
     }
 
