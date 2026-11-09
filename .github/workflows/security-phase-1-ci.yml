@@ -23,6 +23,13 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Regenerate lockfile for security-upgraded dependencies
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Upload generated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-phase-1-lockfile
+          path: package-lock.json
       - name: Install dependencies
         run: npm ci
       - name: TypeScript build
