@@ -18,7 +18,7 @@ async function checkRateLimit(agentId: string, contactId?: string): Promise<Rate
   const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
   // Check global hourly
-  const { count: globalHourly } = await supabase
+  const { count: globalHourly, error: globalHourlyError } = await supabase
     .from('messages')
     .select('*', { count: 'exact', head: true })
     .gte('created_at', oneHourAgo.toISOString());
@@ -26,8 +26,10 @@ async function checkRateLimit(agentId: string, contactId?: string): Promise<Rate
     return { allowed: false, remaining: 0, resetAt: new Date(now.getTime() + 60 * 60 * 1000), reason: 'global_hourly' };
   }
 
+  if (globalHourlyError) throw new Error('Global hourly rate-limit query failed');
+
   // Check global daily
-  const { count: globalDaily } = await supabase
+  const { count: globalDaily, error: globalDailyError } = await supabase
     .from('messages')
     .select('*', { count: 'exact', head: true })
     .gte('created_at', oneDayAgo.toISOString());
@@ -35,8 +37,10 @@ async function checkRateLimit(agentId: string, contactId?: string): Promise<Rate
     return { allowed: false, remaining: 0, resetAt: new Date(now.getTime() + 24 * 60 * 60 * 1000), reason: 'global_daily' };
   }
 
+  if (globalDailyError) throw new Error('Global daily rate-limit query failed');
+
   // Check agent hourly
-  const { count: agentHourly } = await supabase
+  const { count: agentHourly, error: agentHourlyError } = await supabase
     .from('messages')
     .select('*', { count: 'exact', head: true })
     .eq('sender_id', agentId)
@@ -46,8 +50,10 @@ async function checkRateLimit(agentId: string, contactId?: string): Promise<Rate
     return { allowed: false, remaining: 0, resetAt: new Date(now.getTime() + 60 * 60 * 1000), reason: 'agent_hourly' };
   }
 
+  if (agentHourlyError) throw new Error('Agent hourly rate-limit query failed');
+
   // Check agent daily
-  const { count: agentDaily } = await supabase
+  const { count: agentDaily, error: agentDailyError } = await supabase
     .from('messages')
     .select('*', { count: 'exact', head: true })
     .eq('sender_id', agentId)
@@ -57,14 +63,17 @@ async function checkRateLimit(agentId: string, contactId?: string): Promise<Rate
     return { allowed: false, remaining: 0, resetAt: new Date(now.getTime() + 24 * 60 * 60 * 1000), reason: 'agent_daily' };
   }
 
+  if (agentDailyError) throw new Error('Agent daily rate-limit query failed');
+
   // Check contact daily (if contact specified)
   if (contactId) {
-    const { count: contactDaily } = await supabase
+    const { count: contactDaily, error: contactDailyError } = await supabase
       .from('messages')
       .select('*', { count: 'exact', head: true })
       .eq('conversation_id', contactId) // simplified: use conversation_id as proxy
       .eq('direction', 'outbound')
       .gte('created_at', oneDayAgo.toISOString());
+    if (contactDailyError) throw new Error('Contact daily rate-limit query failed');
     if ((contactDaily || 0) >= config.rateLimits.contactDaily) {
       return { allowed: false, remaining: 0, resetAt: new Date(now.getTime() + 24 * 60 * 60 * 1000), reason: 'contact_daily' };
     }
@@ -99,7 +108,11 @@ export function rateLimitMiddleware(req: Request, res: Response, next: NextFunct
       next();
     })
     .catch(err => {
-      logger.error('Rate limit check failed', { error: err });
-      next(); // Fail open
+      logger.error('Rate limit check failed; outbound request blocked', { error: err });
+      res.status(503).json({
+        error: 'rate_limit_unavailable',
+        message: 'Unable to verify sending limits; retry later',
+        code: 503,
+      });
     });
 }
