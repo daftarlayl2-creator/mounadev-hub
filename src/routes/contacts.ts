@@ -75,7 +75,7 @@ router.patch('/:id', requirePermission('write'), async (req: Request, res: Respo
       res.status(404).json({ error: 'contact_not_found', message: 'Contact not found', code: 404 });
       return;
     }
-    const contact = await contactService.update(req.params.id, parsed.data);
+    const contact = await contactService.update(req.params.id, parsed.data, agent.permissions.includes('admin') ? undefined : agent.id);
     await auditService.log({ agentId: agent.id, action: 'update_contact', resourceType: 'contact', resourceId: contact.id, ipAddress: req.ip });
     res.json(contact);
   } catch (err: any) {
@@ -97,7 +97,7 @@ router.post('/:id/opt-out', requirePermission('write'), async (req: Request, res
       res.status(400).json({ error: 'validation_error', message: parsed.error.message, code: 400 });
       return;
     }
-    const contact = await contactService.optOut(req.params.id, parsed.data.reason, agent.id);
+    const contact = await contactService.optOut(req.params.id, parsed.data.reason, agent.id, agent.permissions.includes('admin') ? undefined : agent.id);
     await auditService.log({ agentId: agent.id, action: 'mark_opt_out', resourceType: 'contact', resourceId: contact.id, details: { reason: parsed.data.reason }, ipAddress: req.ip });
     res.json(contact);
   } catch (err: any) {
