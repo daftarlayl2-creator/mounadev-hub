@@ -103,7 +103,8 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
         }
 
         // Route to agent
-        const assignedAgent = await automationService.routeInbound(contact.id, conversation.id);
+        const isComplaintDetected = automationService.isComplaintOrSensitive(msg.content);
+        const assignedAgent = isComplaintDetected ? 'mara' : await automationService.routeInbound(contact.id, conversation.id);
         if (assignedAgent !== conversation.assigned_agent) {
           await conversationService.update(conversation.id, { assigned_agent: assignedAgent });
         }
@@ -116,7 +117,7 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
 
         // AI auto-reply (unless opt-out or complaint escalated)
         const isOptOut = automationService.isOptOutMessage(msg.content);
-        const isComplaint = automationService.isComplaintOrSensitive(msg.content);
+        const isComplaint = isComplaintDetected;
         if (config.whatsappAgent.autoReply && !isOptOut && !isComplaint) {
           try {
             const limit = await checkRateLimit(waAgentId, contact.id);
