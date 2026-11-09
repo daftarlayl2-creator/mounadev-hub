@@ -35,7 +35,7 @@ export class OpenWAAdapter implements ChannelAdapter {
   }
 
   private maskPhone(phone: string): string {
-    const normalized = phone.replace(/\\D/g, '');
+    const normalized = phone.replace(/\D/g, '');
     return normalized.length > 4 ? `***${normalized.slice(-4)}` : '****';
   }
 
