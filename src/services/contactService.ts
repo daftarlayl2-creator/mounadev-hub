@@ -77,19 +77,19 @@ export class ContactService {
     return data;
   }
 
-  async update(id: string, updates: Partial<Contact>): Promise<Contact> {
+  async update(id: string, updates: Partial<Contact>, assignedAgent?: string): Promise<Contact> {
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    let query = supabase
       .from('contacts')
       .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
+      .eq('id', id);
+    if (assignedAgent) query = query.eq('assigned_agent', assignedAgent);
+    const { data, error } = await query.select().single();
     if (error) throw new Error(`Failed to update contact: ${error.message}`);
     return data;
   }
 
-  async optOut(id: string, reason: string, agentId: string): Promise<Contact> {
+  async optOut(id: string, reason: string, agentId: string, assignedAgent?: string): Promise<Contact> {
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('contacts')
@@ -99,9 +99,9 @@ export class ContactService {
         notes: `Opted out: ${reason}`,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', id)
-      .select()
-      .single();
+      .eq('id', id);
+    const scopedQuery = assignedAgent ? query.eq('assigned_agent', assignedAgent) : query;
+    const { data, error } = await scopedQuery.select().single();
     if (error) throw new Error(`Failed to opt out contact: ${error.message}`);
     logger.info('Contact opted out', { id, agent: agentId });
     return data;
