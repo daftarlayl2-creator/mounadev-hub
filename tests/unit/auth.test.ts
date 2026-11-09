@@ -64,12 +64,12 @@ import { contactSchema, contactUpdateSchema, conversationCreateSchema } from '..
 describe('security validation regressions', () => {
   const automation = new AutomationService();
 
-  it.each(['STOP', 'unsubscribe', 'opt out', 'opt-out', 'please stop messaging me', 'arrêter', 'arrêtez', 'désabonner', 'لا', 'وقف'])(
+  it.each(['STOP', 'unsubscribe', 'opt out', 'opt-out', 'please stop messaging me', 'arrêter', 'arrêtez', 'désabonner', 'لا ترسل لي', 'وقف'])(
     'recognizes explicit opt-out phrase: %s',
     (message) => expect(automation.isOptOutMessage(message)).toBe(true),
   );
 
-  it.each(['I have no questions', 'No problem', 'knowledge base', 'stopwatch', 'désabonnement information'])(
+  it.each(['I have no questions', 'No problem', 'knowledge base', 'stopwatch', 'désabonnement information', 'لا مشكلة'])(
     'does not match ordinary text as opt-out: %s',
     (message) => expect(automation.isOptOutMessage(message)).toBe(false),
   );
