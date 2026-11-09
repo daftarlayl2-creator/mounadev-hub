@@ -67,9 +67,8 @@ export class AiReplyService {
       });
 
       if (!res.ok) {
-        const text = await res.text();
-        logger.error('AI reply request failed', { status: res.status, body: text });
-        return { success: false, reply: '', error: `http_${res.status}: ${text}` };
+        logger.error('AI reply request failed', { status: res.status });
+        return { success: false, reply: '', error: `http_${res.status}` };
       }
 
       const data: any = await res.json();
@@ -79,8 +78,8 @@ export class AiReplyService {
       }
       return { success: true, reply };
     } catch (err: any) {
-      logger.error('AI reply generation failed', { error: err.message });
-      return { success: false, reply: '', error: err.message };
+      logger.error('AI reply generation failed');
+      return { success: false, reply: '', error: 'AI reply service unavailable' };
     }
   }
 }

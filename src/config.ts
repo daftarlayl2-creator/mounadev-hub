@@ -5,7 +5,8 @@ dotenv.config();
 export const config = {
   port: parseInt(process.env.PORT || '3001', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
-  hubApiKey: process.env.HUB_API_KEY || 'caissa_hub_master_key_change_me',
+  corsOrigins: (process.env.CORS_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean),
+  hubApiKey: process.env.HUB_API_KEY || '',
   supabase: {
     url: process.env.SUPABASE_URL || '',
     serviceKey: process.env.SUPABASE_SERVICE_KEY || '',
@@ -37,10 +38,41 @@ export const config = {
   },
 };
 
+export function validateProductionCorsOrigins(rawOrigins: string): string[] {
+  const origins = rawOrigins.split(',').map(value => value.trim()).filter(Boolean);
+  if (origins.length === 0) {
+    throw new Error('CORS_ORIGINS must contain at least one explicit HTTPS origin in production');
+  }
+
+  for (const origin of origins) {
+    let parsed: URL;
+    try {
+      parsed = new URL(origin);
+    } catch {
+      throw new Error('CORS_ORIGINS must contain valid origin URLs only');
+    }
+    if (parsed.protocol !== 'https:' || parsed.origin !== origin || parsed.username || parsed.password) {
+      throw new Error('CORS_ORIGINS entries must be exact HTTPS origins without paths, credentials, or wildcards');
+    }
+  }
+
+  return [...new Set(origins)];
+}
+
 export function validateConfig(): void {
   const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
+  if (process.env.NODE_ENV === 'production') {
+    required.push('WEBHOOK_SECRET', 'OPENWA_API_KEY', 'CORS_ORIGINS');
+    if ((process.env.WHATSAPP_AUTO_REPLY || 'true') === 'true') required.push('HERMES_API_KEY');
+  }
   const missing = required.filter(key => !process.env[key]);
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  }
+  if (process.env.NODE_ENV === 'production' && ((process.env.WEBHOOK_SECRET || '').length < 32 || (process.env.WEBHOOK_SECRET || '').length > 255)) {
+    throw new Error('WEBHOOK_SECRET must be between 32 and 255 characters in production');
+  }
+  if (process.env.NODE_ENV === 'production') {
+    validateProductionCorsOrigins(process.env.CORS_ORIGINS || '');
   }
 }

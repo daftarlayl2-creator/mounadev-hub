@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 import { listPersonas } from '../services/agentPersonas';
 import { aiReplyService } from '../services/aiReplyService';
 import { config } from '../config';
+import { z } from 'zod';
 
 const router = Router();
 router.use(authenticateAgent);
@@ -15,23 +16,23 @@ router.use(authenticateAgent);
 router.post('/pause-outbound', requirePermission('admin'), async (req: Request, res: Response) => {
   try {
     const agent = (req as AuthenticatedRequest).agent;
-    const { reason, duration_minutes } = req.body;
+    const parsed = z.object({ reason: z.string().max(500).optional(), duration_minutes: z.number().int().min(1).max(1440).default(60) }).strict().safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'validation_error', message: parsed.error.message, code: 400 });
+      return;
+    }
+    const { reason, duration_minutes } = parsed.data;
     const supabase = getSupabase();
-
-    // Store pause state in a simple key-value (use a settings table or env)
-    // For now, log and return success
-    await auditService.log({
-      agentId: agent.id,
-      action: 'pause_outbound',
-      resourceType: 'system',
-      details: { reason, duration_minutes },
-      ipAddress: req.ip,
+    const { error } = await supabase.from('audit_log').insert({
+      agent_id: agent.id, action: 'pause_outbound', resource_type: 'system',
+      details: { reason: reason || 'emergency_stop', duration_minutes }, ip_address: req.ip,
     });
+    if (error) throw new Error('Unable to persist outbound pause state');
 
     logger.warn('Outbound messaging paused', { agent: agent.id, reason, duration_minutes });
     res.json({ paused: true, reason, duration_minutes, paused_by: agent.id });
   } catch (err: any) {
-    res.status(500).json({ error: 'internal_error', message: err.message, code: 500 });
+    res.status(500).json({ error: 'internal_error', message: 'Unable to process administrative request', code: 500 });
   }
 });
 
@@ -39,7 +40,9 @@ router.post('/pause-outbound', requirePermission('admin'), async (req: Request, 
 router.post('/resume-outbound', requirePermission('admin'), async (req: Request, res: Response) => {
   try {
     const agent = (req as AuthenticatedRequest).agent;
-    await auditService.log({ agentId: agent.id, action: 'resume_outbound', resourceType: 'system', ipAddress: req.ip });
+    const supabase = getSupabase();
+    const { error } = await supabase.from('audit_log').insert({ agent_id: agent.id, action: 'resume_outbound', resource_type: 'system', ip_address: req.ip });
+    if (error) throw new Error('Unable to persist outbound resume state');
     logger.info('Outbound messaging resumed', { agent: agent.id });
     res.json({ paused: false, resumed_by: agent.id });
   } catch (err: any) {
@@ -48,7 +51,7 @@ router.post('/resume-outbound', requirePermission('admin'), async (req: Request,
 });
 
 // GET /admin/status
-router.get('/status', async (req: Request, res: Response) => {
+router.get('/status', requirePermission('admin'), async (req: Request, res: Response) => {
   try {
     const supabase = getSupabase();
     const { count: totalMessages } = await supabase.from('messages').select('*', { count: 'exact', head: true });
@@ -70,17 +73,27 @@ router.get('/status', async (req: Request, res: Response) => {
 });
 
 // GET /admin/agents — list employee agents available to back the WhatsApp agent
-router.get('/agents', async (_req: Request, res: Response) => {
+router.get('/agents', requirePermission('read'), async (_req: Request, res: Response) => {
   res.json({ agents: listPersonas() });
 });
 
 // POST /admin/test-reply — generate a test AI reply without sending
 router.post('/test-reply', requirePermission('admin'), async (req: Request, res: Response) => {
   try {
-    const { agent_id, message, contact_name, business_name } = req.body;
+    const parsed = z.object({
+      agent_id: z.string().min(1).max(64).optional(),
+      message: z.string().min(1).max(4000).default('Bonjour'),
+      contact_name: z.string().max(100).optional(),
+      business_name: z.string().max(200).optional(),
+    }).strict().safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'validation_error', message: parsed.error.message, code: 400 });
+      return;
+    }
+    const { agent_id, message, contact_name, business_name } = parsed.data;
     const result = await aiReplyService.generateReply({
       agentId: agent_id || config.whatsappAgent.agentId,
-      customerMessage: message || 'Bonjour',
+      customerMessage: message,
       contactName: contact_name,
       businessName: business_name,
     });

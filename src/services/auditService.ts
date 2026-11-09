@@ -54,8 +54,8 @@ export class AuditService {
     if (params.from_date) query = query.gte('created_at', params.from_date);
     if (params.to_date) query = query.lte('created_at', params.to_date);
 
-    const limit = params.limit || 50;
-    const offset = params.offset || 0;
+    const limit = Math.min(Math.max(params.limit || 50, 1), 100);
+    const offset = Math.min(Math.max(params.offset || 0, 0), 100000);
     query = query.range(offset, offset + limit - 1).order('created_at', { ascending: false });
 
     const { data, error, count } = await query;

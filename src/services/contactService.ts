@@ -25,7 +25,8 @@ export class ContactService {
     let query = supabase.from('contacts').select('*', { count: 'exact' });
 
     if (params.search) {
-      query = query.or(`name.ilike.%${params.search}%,business_name.ilike.%${params.search}%,phone.ilike.%${params.search}%`);
+      const safeSearch = params.search.replace(/[^\p{L}\p{N}\s+@_-]/gu, ' ').trim().slice(0, 100);
+      if (safeSearch) query = query.or(`name.ilike.%${safeSearch}%,business_name.ilike.%${safeSearch}%,phone.ilike.%${safeSearch}%`);
     }
     if (params.business_type) {
       query = query.eq('business_type', params.business_type);
@@ -37,8 +38,8 @@ export class ContactService {
       query = query.eq('assigned_agent', params.assigned_agent);
     }
 
-    const limit = params.limit || 20;
-    const offset = params.offset || 0;
+    const limit = Math.min(Math.max(params.limit || 20, 1), 100);
+    const offset = Math.min(Math.max(params.offset || 0, 0), 100000);
     query = query.range(offset, offset + limit - 1).order('created_at', { ascending: false });
 
     const { data, error, count } = await query;
@@ -46,9 +47,11 @@ export class ContactService {
     return { data: data || [], total: count || 0 };
   }
 
-  async getById(id: string): Promise<Contact | null> {
+  async getById(id: string, assignedAgent?: string): Promise<Contact | null> {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('contacts').select('*').eq('id', id).single();
+    let query = supabase.from('contacts').select('*').eq('id', id);
+    if (assignedAgent) query = query.eq('assigned_agent', assignedAgent);
+    const { data, error } = await query.single();
     if (error) return null;
     return data;
   }
@@ -70,25 +73,25 @@ export class ContactService {
       .select()
       .single();
     if (error) throw new Error(`Failed to create contact: ${error.message}`);
-    logger.info('Contact created', { id: data.id, phone: data.phone });
+    logger.info('Contact created', { id: data.id, phone: '***' + String(data.phone).slice(-4) });
     return data;
   }
 
-  async update(id: string, updates: Partial<Contact>): Promise<Contact> {
+  async update(id: string, updates: Partial<Contact>, assignedAgent?: string): Promise<Contact> {
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    let query = supabase
       .from('contacts')
       .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
+      .eq('id', id);
+    if (assignedAgent) query = query.eq('assigned_agent', assignedAgent);
+    const { data, error } = await query.select().single();
     if (error) throw new Error(`Failed to update contact: ${error.message}`);
     return data;
   }
 
-  async optOut(id: string, reason: string, agentId: string): Promise<Contact> {
+  async optOut(id: string, reason: string, agentId: string, assignedAgent?: string): Promise<Contact> {
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    let query = supabase
       .from('contacts')
       .update({
         consent_status: 'opted_out',
@@ -96,11 +99,11 @@ export class ContactService {
         notes: `Opted out: ${reason}`,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', id)
-      .select()
-      .single();
+      .eq('id', id);
+    if (assignedAgent) query = query.eq('assigned_agent', assignedAgent);
+    const { data, error } = await query.select().single();
     if (error) throw new Error(`Failed to opt out contact: ${error.message}`);
-    logger.info('Contact opted out', { id, reason, agent: agentId });
+    logger.info('Contact opted out', { id, agent: agentId });
     return data;
   }
 

@@ -1,0 +1,48 @@
+name: Security Phase 1 CI
+
+on:
+  push:
+    branches:
+      - "security/**"
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: TypeScript build
+        run: npm run build
+      - name: Start server for integration tests
+        run: |
+          SUPABASE_URL=https://example.supabase.co SUPABASE_SERVICE_KEY=test PORT=3001 npm start > /tmp/mounadev-hub.log 2>&1 &
+          echo $! > /tmp/mounadev-hub.pid
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3001/health; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/mounadev-hub.log
+          exit 1
+      - name: Unit and integration tests
+        run: npm test
+      - name: Stop test server
+        if: always()
+        run: if [ -f /tmp/mounadev-hub.pid ]; then kill "$(cat /tmp/mounadev-hub.pid)" || true; fi
+      - name: Dependency security audit
+        run: npm audit --audit-level=high

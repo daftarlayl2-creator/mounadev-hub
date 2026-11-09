@@ -1,5 +1,4 @@
 // src/services/automationService.ts
-import { getSupabase } from '../utils/supabase';
 import { logger } from '../utils/logger';
 import { conversationService } from './conversationService';
 import { contactService } from './contactService';
@@ -21,18 +20,6 @@ export class AutomationService {
 
     // Default to sami (sales)
     return 'sami';
-  }
-
-  // Auto-consent: inbound message implies opt-in
-  async handleInboundConsent(contactId: string): Promise<void> {
-    const contact = await contactService.getById(contactId);
-    if (contact && contact.consent_status === 'none') {
-      await contactService.update(contactId, {
-        consent_status: 'opted_in',
-        consent_date: new Date().toISOString(),
-      });
-      logger.info('Auto-consent granted via inbound message', { contactId });
-    }
   }
 
   // Check if contact should receive auto-reply
@@ -61,9 +48,27 @@ export class AutomationService {
 
   // Check if message contains opt-out keywords
   isOptOutMessage(content: string): boolean {
-    const keywords = ['stop', 'unsubscribe', 'opt out', 'opt-out', 'arrêter', 'arrêtez', 'désabonner', 'no', 'لا', 'وقف'];
-    const lower = content.toLowerCase();
-    return keywords.some(kw => lower.includes(kw));
+    // Match explicit opt-out phrases as whole words; avoid substrings such as "no" in "know".
+    const normalized = content
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[.!?,;:،؛]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!normalized) return false;
+
+    const explicitPhrases = [
+      'stop', 'unsubscribe', 'opt out', 'opt-out',
+      'arreter', 'arretez', 'desabonner',
+      'لا ترسل', 'لا تراسل', 'لا تتصل', 'لا اريد', 'وقف',
+    ];
+    return explicitPhrases.some(phrase =>
+      normalized === phrase ||
+      normalized.startsWith(phrase + ' ') ||
+      normalized.endsWith(' ' + phrase) ||
+      normalized.includes(' ' + phrase + ' ')
+    );
   }
 
   // Check if message contains sensitive/complaint keywords

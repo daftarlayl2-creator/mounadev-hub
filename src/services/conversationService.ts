@@ -17,14 +17,19 @@ export interface Conversation {
 export class ConversationService {
   async list(params: { contact_id?: string; status?: string; assigned_agent?: string; limit?: number; offset?: number }): Promise<{ data: any[]; total: number }> {
     const supabase = getSupabase();
-    let query = supabase.from('conversations').select('*, contacts(phone, name, business_name)', { count: 'exact' });
+    let query = supabase.from('conversations').select('*, contacts!inner(phone, name, business_name)', { count: 'exact' });
 
     if (params.contact_id) query = query.eq('contact_id', params.contact_id);
     if (params.status) query = query.eq('status', params.status);
-    if (params.assigned_agent) query = query.eq('assigned_agent', params.assigned_agent);
+    if (params.assigned_agent) {
+      // Fail closed on stale/mismatched ownership: both the conversation and its
+      // linked contact must belong to the requesting agent.
+      query = query.eq('assigned_agent', params.assigned_agent)
+        .eq('contacts.assigned_agent', params.assigned_agent);
+    }
 
-    const limit = params.limit || 20;
-    const offset = params.offset || 0;
+    const limit = Math.min(Math.max(params.limit || 20, 1), 100);
+    const offset = Math.min(Math.max(params.offset || 0, 0), 100000);
     query = query.range(offset, offset + limit - 1).order('updated_at', { ascending: false });
 
     const { data, error, count } = await query;
@@ -32,24 +37,33 @@ export class ConversationService {
     return { data: data || [], total: count || 0 };
   }
 
-  async getById(id: string): Promise<any | null> {
+  async getById(id: string, assignedAgent?: string): Promise<any | null> {
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    let query = supabase
       .from('conversations')
-      .select('*, contacts(phone, name, business_name, business_type)')
-      .eq('id', id)
-      .single();
+      .select('*, contacts!inner(phone, name, business_name, business_type)')
+      .eq('id', id);
+    if (assignedAgent) {
+      query = query.eq('assigned_agent', assignedAgent)
+        .eq('contacts.assigned_agent', assignedAgent);
+    }
+    const { data, error } = await query.single();
     if (error) return null;
     return data;
   }
 
-  async getByContact(contactId: string): Promise<any | null> {
+  async getByContact(contactId: string, assignedAgent?: string): Promise<any | null> {
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    let query = supabase
       .from('conversations')
-      .select('*')
+      .select('*, contacts!inner(assigned_agent)')
       .eq('contact_id', contactId)
-      .eq('status', 'active')
+      .eq('status', 'active');
+    if (assignedAgent) {
+      query = query.eq('assigned_agent', assignedAgent)
+        .eq('contacts.assigned_agent', assignedAgent);
+    }
+    const { data, error } = await query
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -77,24 +91,24 @@ export class ConversationService {
     return data;
   }
 
-  async update(id: string, updates: Partial<Conversation>): Promise<Conversation> {
+  async update(id: string, updates: Partial<Conversation>, assignedAgent?: string): Promise<Conversation> {
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    let query = supabase
       .from('conversations')
       .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single();
+      .eq('id', id);
+    if (assignedAgent) query = query.eq('assigned_agent', assignedAgent);
+    const { data, error } = await query.select().single();
     if (error) throw new Error(`Failed to update conversation: ${error.message}`);
     return data;
   }
 
-  async close(id: string): Promise<Conversation> {
-    return this.update(id, { status: 'closed' });
+  async close(id: string, assignedAgent?: string): Promise<Conversation> {
+    return this.update(id, { status: 'closed' }, assignedAgent);
   }
 
-  async escalate(id: string, agentId: string): Promise<Conversation> {
-    return this.update(id, { status: 'escalated', assigned_agent: agentId });
+  async escalate(id: string, agentId: string, assignedAgent?: string): Promise<Conversation> {
+    return this.update(id, { status: 'escalated', assigned_agent: agentId }, assignedAgent);
   }
 
   async isWindowExpired(id: string): Promise<boolean> {

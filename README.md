@@ -22,7 +22,7 @@ Copy `supabase/migrations/001_initial_schema.sql` and run it in your Supabase Da
 ```bash
 npx ts-node scripts/seed-agents.ts
 ```
-This generates API keys for all 15 agents and saves them to `agent-api-keys.json`.
+This generates API keys for all 15 agents and saves them to `agent-api-keys.json` (or the path in `AGENT_API_KEYS_FILE`). The file is created exclusively with owner-only POSIX permissions where supported; an existing file is never overwritten. The script does not print API keys. Store the file in a protected local secret store, never commit or upload it, and back it up securely before rotating credentials. If the file already exists, deliberately move it to secure storage before running the seeder again.
 
 ### 5. Start the server
 ```bash
@@ -61,7 +61,19 @@ curl http://localhost:3001/health
 
 ## Authentication
 
-All API requests require `X-Agent-Key` header with the agent's API key.
+All API requests require `X-Agent-Key` header with the agent's API key. Agent access to contacts and conversations is scoped to the authenticated agent's assignment; agents cannot assign records or grant consent through request payloads.
+
+### Webhook authentication
+
+Set the OpenWA webhook's `secret` field to the same long random value as the server's `WEBHOOK_SECRET`. OpenWA signs the exact JSON request body with HMAC-SHA256 and sends `X-OpenWA-Signature: sha256=<hex>`; the receiver verifies that signature against the captured raw request bytes using a constant-time comparison. Requests without a valid signature are rejected. Do not replace this with a plain custom header.
+
+### Browser origins
+
+Set `CORS_ORIGINS` to a comma-separated allowlist of exact dashboard origins (scheme + hostname + optional port). In production, the server requires at least one explicit HTTPS origin and rejects wildcards, paths, and credentials. Browser origins not on this list are denied. Requests without an Origin header remain available for server-to-server clients.
+
+### Emergency stop
+
+The admin pause/resume endpoints persist state in `audit_log`. Outbound sends and WhatsApp auto-replies check the latest pause/resume event; a pause defaults to 60 minutes and may be set from 1 to 1440 minutes.
 
 ## Architecture
 

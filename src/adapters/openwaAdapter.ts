@@ -1,7 +1,23 @@
 // src/adapters/openwaAdapter.ts
 import { ChannelAdapter, SendResult, MessageStatus, InboundMessage } from './channelAdapter';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+
+class OpenWAHttpError extends Error {
+  constructor(readonly statusCode: number) {
+    super(`OpenWA provider returned HTTP ${statusCode}`);
+    this.name = 'OpenWAHttpError';
+  }
+}
+
+export function verifyOpenWaSignature(rawBody: Buffer | string | undefined, signature: string | undefined, secret: string): boolean {
+  if (!rawBody || !signature || !secret) return false;
+  const expected = 'sha256=' + createHmac('sha256', secret).update(rawBody).digest('hex');
+  const suppliedBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  return suppliedBuffer.length === expectedBuffer.length && timingSafeEqual(suppliedBuffer, expectedBuffer);
+}
 
 export class OpenWAAdapter implements ChannelAdapter {
   private baseUrl: string;
@@ -27,10 +43,16 @@ export class OpenWAAdapter implements ChannelAdapter {
 
     const response = await fetch(url, options);
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`OpenWA request failed: ${response.status} ${text}`);
+      // A 4xx response is an explicit rejection. A 5xx response can be ambiguous:
+      // the provider may have accepted the message before failing to answer.
+      throw new OpenWAHttpError(response.status);
     }
     return response.json();
+  }
+
+  private maskPhone(phone: string): string {
+    const normalized = phone.replace(/\D/g, '');
+    return normalized.length > 4 ? `***${normalized.slice(-4)}` : '****';
   }
 
   async sendText(to: string, content: string): Promise<SendResult> {
@@ -40,13 +62,17 @@ export class OpenWAAdapter implements ChannelAdapter {
         chatId,
         text: content,
       });
-      console.log('DEBUG result:', JSON.stringify(result));
-      logger.info('OpenWA text sent', { to, messageId: result.id });
+      logger.info('OpenWA text sent', { to: this.maskPhone(to), messageId: result.id });
       return { success: true, messageId: result.id || result.messageId || 'unknown' };
     } catch (err: any) {
-      console.log('DEBUG error:', err.message);
-      logger.error('OpenWA sendText failed', { error: err.message, to });
-      return { success: false, messageId: '', error: err.message };
+      logger.error('OpenWA sendText failed', { to: this.maskPhone(to) });
+      if (err instanceof OpenWAHttpError && err.statusCode >= 400 && err.statusCode < 500) {
+        return { success: false, messageId: '', error: `OpenWA provider rejected request (${err.statusCode})` };
+      }
+      // Network errors, response parsing errors, and 5xx responses are ambiguous.
+      // Propagate them so MessageService keeps the message outcome unknown instead
+      // of marking it failed and allowing an unsafe duplicate send.
+      throw err;
     }
   }
 
@@ -70,36 +96,49 @@ export class OpenWAAdapter implements ChannelAdapter {
       });
       return { success: true, messageId: result.id || result.messageId || 'unknown' };
     } catch (err: any) {
-      return { success: false, messageId: '', error: err.message };
+      logger.error('OpenWA sendMedia failed', { to: this.maskPhone(to) });
+      if (err instanceof OpenWAHttpError && err.statusCode >= 400 && err.statusCode < 500) {
+        return { success: false, messageId: '', error: `OpenWA provider rejected request (${err.statusCode})` };
+      }
+      throw err;
     }
   }
 
-  async getStatus(providerMessageId: string): Promise<MessageStatus> {
-    // OpenWA doesn't have a direct status endpoint; return 'sent' as default
-    return { status: 'sent' };
+  async getStatus(_providerMessageId: string): Promise<MessageStatus> {
+    // OpenWA exposes no verified status lookup in this adapter. Never fabricate
+    // delivery state: callers must treat unsupported reconciliation as unknown.
+    throw new Error('OpenWA message status lookup is not supported');
   }
 
-  verifyWebhook(payload: any, signature: string): boolean {
-    // OpenWA webhook verification (simplified)
-    return true;
+  verifyWebhook(rawBody: Buffer | string | undefined, signature: string | undefined): boolean {
+    return verifyOpenWaSignature(rawBody, signature, config.webhook.secret);
   }
 
   parseInbound(payload: any): InboundMessage[] {
     const messages: InboundMessage[] = [];
     // OpenWA webhook format: event 'message' or 'message.received'
+    if (!payload || typeof payload !== 'object') return messages;
     const isOpenWA = payload.event === 'message' || payload.event === 'message.received';
-    if (isOpenWA && payload.data) {
+    if (isOpenWA && payload.data && typeof payload.data === 'object') {
       const d = payload.data;
+      const rawFrom = d.from || d.sender || d.chatId || '';
+      const from = typeof rawFrom === 'string' ? rawFrom.replace(/@.*$/, '') : '';
+      const rawContent = d.body ?? d.text ?? d.content ?? '';
+      const content = typeof rawContent === 'string' ? rawContent.slice(0, 4096) : '';
+      const rawMessageId = d.id || d.messageId || d.key?.id || '';
+      const messageId = typeof rawMessageId === 'string' ? rawMessageId.slice(0, 255) : '';
+      if (!/^\+?[1-9]\d{6,14}$/.test(from) || !content.trim()) return messages;
+
       messages.push({
-        from: (d.from || d.sender || d.chatId || '').replace(/@.*$/, ''),
-        messageId: d.id || d.messageId || d.key?.id || '',
-        content: d.body || d.text || d.content || '',
+        from,
+        messageId,
+        content,
         timestamp: (() => {
           const t = d.timestamp;
           if (!t) return new Date();
           const n = Number(t);
-          if (isNaN(n)) return new Date(t);
-          return new Date(n > 1e12 ? n : n * 1000);
+          const date = isNaN(n) ? new Date(t) : new Date(n > 1e12 ? n : n * 1000);
+          return Number.isNaN(date.getTime()) ? new Date() : date;
         })(),
         type: (d.type === 'image' || d.type === 'document' || d.type === 'audio' || d.type === 'location') ? d.type : 'text',
       });

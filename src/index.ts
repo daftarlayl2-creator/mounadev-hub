@@ -1,7 +1,8 @@
 // src/index.ts
-import express from 'express';
+import express, { Request } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { config, validateConfig } from './config';
 import { logger } from './utils/logger';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
@@ -33,8 +34,21 @@ app.use(helmet({
     },
   },
 }));
-app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+app.use(cors({
+  origin(origin, callback) {
+    // Non-browser clients do not send Origin; browser origins must be explicitly allowlisted.
+    if (!origin) return callback(null, true);
+    if (config.corsOrigins.includes(origin)) return callback(null, true);
+    return callback(null, false);
+  },
+  credentials: true,
+}));
+app.use(express.json({
+  limit: '1mb',
+  verify: (req, _res, buffer) => {
+    (req as Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
+  },
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // Serve dashboard static files
@@ -45,6 +59,15 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/health', (_req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString(), version: '1.0.0' });
 });
+
+// Coarse IP-level protection against API and credential-guessing bursts.
+app.use('/api/v1', rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'too_many_requests', message: 'Too many API requests; retry shortly', code: 429 },
+}));
 
 // API routes
 app.use('/api/v1/contacts', contactsRouter);

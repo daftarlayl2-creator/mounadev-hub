@@ -37,30 +37,33 @@ export class MessageService {
     templateName?: string;
     variables?: Record<string, string>;
     agentId: string;
+    isAdmin?: boolean;
   }): Promise<Message> {
-    const { contactId, content, messageType = 'text', idempotencyKey, templateName, variables, agentId } = params;
+    const { contactId, content, messageType = 'text', idempotencyKey, templateName, variables, agentId, isAdmin = false } = params;
+    const assignedAgentScope = isAdmin ? undefined : agentId;
 
-    // 1. Check idempotency
+    // Resolve and authorize the contact before checking idempotency. The service
+    // must remain safe even when called outside the HTTP route.
+    const contact = await contactService.getById(contactId, assignedAgentScope);
+    if (!contact) throw new Error('contact_not_found');
+
+    // Idempotency is scoped to this sender and this authorized contact/conversation.
     if (idempotencyKey) {
-      const existing = await this.getByIdempotencyKey(idempotencyKey);
+      const existing = await this.getByIdempotencyKey(idempotencyKey, agentId, contactId, assignedAgentScope);
       if (existing) {
-        logger.info('Duplicate message detected, returning existing', { idempotencyKey });
+        logger.info('Duplicate message detected, returning existing', { agentId });
         return existing;
       }
     }
 
-    // 2. Get contact
-    const contact = await contactService.getById(contactId);
-    if (!contact) throw new Error('contact_not_found');
-
-    // 3. Check contact permission
+    // Check contact permission
     const perm = await contactService.checkPermission(contactId);
     if (!perm.allowed) throw new Error(perm.reason!);
 
     // 4. Get or create conversation
-    let conversation = await conversationService.getByContact(contactId);
+    let conversation = await conversationService.getByContact(contactId, assignedAgentScope);
     if (!conversation) {
-      conversation = await conversationService.create(contactId, 'whatsapp', agentId);
+      conversation = await conversationService.create(contactId, 'whatsapp', contact.assigned_agent || agentId);
     }
 
     // 5. Check 24h window (for Meta; OpenWA doesn't enforce)
@@ -93,50 +96,94 @@ export class MessageService {
 
     if (error) throw new Error(`Failed to create message: ${error.message}`);
 
-    // 7. Send via channel adapter
+    // 7. Send via channel adapter. Keep provider execution separate from DB
+    // bookkeeping: once a provider confirms acceptance, a later DB failure must
+    // never rewrite the message as failed and invite an unsafe duplicate retry.
+    let result: SendResult;
     try {
-      let result: SendResult;
-      if (messageType === 'template' && templateName) {
-        result = await this.adapter.sendTemplate(contact.phone, templateName, variables || {});
-      } else {
-        result = await this.adapter.sendText(contact.phone, content);
-      }
-
-      if (result.success) {
-        await supabase
-          .from('messages')
-          .update({ status: 'sent', provider_message_id: result.messageId, updated_at: new Date().toISOString() })
-          .eq('id', message.id);
-
-        // Update conversation last_message_at
-        await conversationService.update(conversation.id, { last_message_at: new Date().toISOString() });
-
-        logger.info('Message sent', { messageId: message.id, providerId: result.messageId, agent: agentId });
-        return { ...message, status: 'sent', provider_message_id: result.messageId };
-      } else {
-        await supabase
-          .from('messages')
-          .update({ status: 'failed', error_message: result.error, updated_at: new Date().toISOString() })
-          .eq('id', message.id);
-        throw new Error(`provider_error: ${result.error}`);
-      }
+      result = messageType === 'template' && templateName
+        ? await this.adapter.sendTemplate(contact.phone, templateName, variables || {})
+        : await this.adapter.sendText(contact.phone, content);
     } catch (err: any) {
-      await supabase
-        .from('messages')
-        .update({ status: 'failed', error_message: err.message, updated_at: new Date().toISOString() })
-        .eq('id', message.id);
-      throw err;
+      // A thrown transport error can be ambiguous: the provider may have accepted
+      // the request before the connection failed. Keep the row queued for manual
+      // reconciliation rather than falsely marking it failed/retryable.
+      const reason = 'send_outcome_unknown';
+      try {
+        const { error: updateError } = await supabase
+          .from('messages')
+          .update({ error_message: reason, updated_at: new Date().toISOString() })
+          .eq('id', message.id);
+        if (updateError) {
+          logger.error('Message transport outcome unknown and could not be annotated', { messageId: message.id });
+        }
+      } catch (_updateErr) {
+        logger.error('Message transport outcome unknown and could not be annotated', { messageId: message.id });
+      }
+      logger.error('Message transport outcome unknown; automatic retry is unsafe', { messageId: message.id });
+      throw new Error(reason);
     }
+
+    if (!result.success) {
+      try {
+        const { error: updateError } = await supabase
+          .from('messages')
+          .update({ status: 'failed', error_message: result.error || 'provider_rejected', updated_at: new Date().toISOString() })
+          .eq('id', message.id);
+        if (updateError) {
+          logger.error('Provider rejected message but failed status could not be persisted', { messageId: message.id });
+        }
+      } catch (_updateErr) {
+        logger.error('Provider rejected message but failed status could not be persisted', { messageId: message.id });
+      }
+      throw new Error(`provider_error: ${result.error || 'provider_rejected'}`);
+    }
+
+    const sentAt = new Date().toISOString();
+    try {
+      const { error: statusError } = await supabase
+        .from('messages')
+        .update({ status: 'sent', provider_message_id: result.messageId, updated_at: sentAt })
+        .eq('id', message.id);
+      if (statusError) {
+        logger.error('Provider accepted message but sent status could not be persisted', { messageId: message.id });
+      }
+    } catch (_statusErr) {
+      logger.error('Provider accepted message but sent status could not be persisted', { messageId: message.id });
+    }
+
+    // Conversation metadata is secondary bookkeeping; its failure must not
+    // change the known provider outcome or mark an accepted message as failed.
+    try {
+      await conversationService.update(conversation.id, { last_message_at: sentAt });
+    } catch (_err) {
+      logger.error('Message sent but conversation timestamp could not be updated', { messageId: message.id });
+    }
+
+    logger.info('Message sent', { messageId: message.id, providerId: result.messageId, agent: agentId });
+    return { ...message, status: 'sent', provider_message_id: result.messageId };
   }
 
-  async getByIdempotencyKey(key: string): Promise<Message | null> {
+  async getByIdempotencyKey(
+    key: string,
+    senderId: string,
+    contactId: string,
+    assignedAgent?: string,
+  ): Promise<Message | null> {
     const supabase = (await import('../utils/supabase')).getSupabase();
     const { data, error } = await supabase
       .from('messages')
       .select('*')
+      .eq('direction', 'outbound')
       .eq('idempotency_key', key)
-      .single();
-    if (error) return null;
+      .eq('sender_id', senderId)
+      .maybeSingle();
+    if (error) throw new Error('Unable to verify message idempotency; send blocked');
+    if (!data) return null;
+
+    // A key collision from another contact must never disclose that message.
+    const conversation = await conversationService.getById(data.conversation_id, assignedAgent);
+    if (!conversation || conversation.contact_id !== contactId) return null;
     return data;
   }
 
@@ -164,6 +211,7 @@ export class MessageService {
     content: string;
     senderPhone: string;
     providerMessageId: string;
+    idempotencyKey?: string;
     messageType?: string;
   }): Promise<Message> {
     const supabase = (await import('../utils/supabase')).getSupabase();
@@ -178,6 +226,7 @@ export class MessageService {
         message_type: params.messageType || 'text',
         status: 'received',
         provider_message_id: params.providerMessageId,
+        idempotency_key: params.idempotencyKey,
       })
       .select()
       .single();
@@ -189,7 +238,7 @@ export class MessageService {
       window_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     });
 
-    logger.info('Inbound message stored', { messageId: data.id, from: params.senderPhone });
+    logger.info('Inbound message stored', { messageId: data.id, from: '***' + params.senderPhone.replace(/\\D/g, '').slice(-4) });
     return data;
   }
 }
