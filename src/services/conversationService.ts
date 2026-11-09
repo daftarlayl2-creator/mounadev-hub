@@ -21,7 +21,12 @@ export class ConversationService {
 
     if (params.contact_id) query = query.eq('contact_id', params.contact_id);
     if (params.status) query = query.eq('status', params.status);
-    if (params.assigned_agent) query = query.eq('assigned_agent', params.assigned_agent);
+    if (params.assigned_agent) {
+      // Fail closed on stale/mismatched ownership: both the conversation and its
+      // linked contact must belong to the requesting agent.
+      query = query.eq('assigned_agent', params.assigned_agent)
+        .eq('contacts.assigned_agent', params.assigned_agent);
+    }
 
     const limit = Math.min(Math.max(params.limit || 20, 1), 100);
     const offset = Math.min(Math.max(params.offset || 0, 0), 100000);
@@ -38,7 +43,10 @@ export class ConversationService {
       .from('conversations')
       .select('*, contacts(phone, name, business_name, business_type)')
       .eq('id', id);
-    if (assignedAgent) query = query.eq('assigned_agent', assignedAgent);
+    if (assignedAgent) {
+      query = query.eq('assigned_agent', assignedAgent)
+        .eq('contacts.assigned_agent', assignedAgent);
+    }
     const { data, error } = await query.single();
     if (error) return null;
     return data;
@@ -51,7 +59,10 @@ export class ConversationService {
       .select('*')
       .eq('contact_id', contactId)
       .eq('status', 'active');
-    if (assignedAgent) query = query.eq('assigned_agent', assignedAgent);
+    if (assignedAgent) {
+      query = query.eq('assigned_agent', assignedAgent)
+        .eq('contacts.assigned_agent', assignedAgent);
+    }
     const { data, error } = await query
       .order('created_at', { ascending: false })
       .limit(1)
