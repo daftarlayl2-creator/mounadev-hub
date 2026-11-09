@@ -61,13 +61,13 @@ export class AutomationService {
 
   // Check if message contains opt-out keywords
   isOptOutMessage(content: string): boolean {
-    // Match explicit opt-out commands/phrases, not substrings (e.g. "no" in "know").
+    // Match explicit opt-out phrases as whole words; avoid substrings such as "no" in "know".
     const normalized = content
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\\u0300-\\u036f]/g, '')
+      .replace(/[\u0300-\u036f]/g, '')
       .replace(/[.!?,;:،؛]+/g, ' ')
-      .replace(/\\s+/g, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
     if (!normalized) return false;
 
@@ -76,12 +76,12 @@ export class AutomationService {
       'arreter', 'arretez', 'desabonner',
       'لا', 'وقف',
     ];
-    return explicitPhrases.some(phrase => {
-      const escaped = phrase.replace(/[.*+?^\x24{}()|[\]\\]/g, '\\    return explicitPhrases.some(phrase =>
-      normalized === phrase || normalized.startsWith(phrase + ' ')
-    );');
-      return new RegExp('(^|\\s)' + escaped + '($|\\s)').test(normalized);
-    });
+    return explicitPhrases.some(phrase =>
+      normalized === phrase ||
+      normalized.startsWith(phrase + ' ') ||
+      normalized.endsWith(' ' + phrase) ||
+      normalized.includes(' ' + phrase + ' ')
+    );
   }
 
   // Check if message contains sensitive/complaint keywords
