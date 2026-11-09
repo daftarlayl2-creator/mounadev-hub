@@ -79,7 +79,7 @@ router.patch('/:id', requirePermission('write'), async (req: Request, res: Respo
       res.status(404).json({ error: 'conversation_not_found', message: 'Conversation not found', code: 404 });
       return;
     }
-    const conv = await conversationService.update(req.params.id, parsed.data);
+    const conv = await conversationService.update(req.params.id, parsed.data, agent.permissions.includes('admin') ? undefined : agent.id);
     await auditService.log({ agentId: agent.id, action: 'update_conversation', resourceType: 'conversation', resourceId: conv.id, details: req.body, ipAddress: req.ip });
     res.json(conv);
   } catch (err: any) {
@@ -95,7 +95,7 @@ router.post('/:id/close', requirePermission('write'), async (req: Request, res: 
       res.status(404).json({ error: 'conversation_not_found', message: 'Conversation not found', code: 404 });
       return;
     }
-    const conv = await conversationService.close(req.params.id);
+    const conv = await conversationService.close(req.params.id, agent.permissions.includes('admin') ? undefined : agent.id);
     await auditService.log({ agentId: agent.id, action: 'close_conversation', resourceType: 'conversation', resourceId: conv.id, ipAddress: req.ip });
     res.json(conv);
   } catch (err: any) {
@@ -122,9 +122,9 @@ router.post('/:id/escalate', requirePermission('write'), async (req: Request, re
       res.status(400).json({ error: 'invalid_target_agent', message: 'Target agent does not exist', code: 400 });
       return;
     }
-    const conv = await conversationService.escalate(req.params.id, targetAgent);
+    const conv = await conversationService.escalate(req.params.id, targetAgent, agent.permissions.includes('admin') ? undefined : agent.id);
     // Keep contact and conversation ownership aligned so the receiving agent can access and reply.
-    await contactService.update(conv.contact_id, { assigned_agent: targetAgent });
+    await contactService.update(conv.contact_id, { assigned_agent: targetAgent }, agent.permissions.includes('admin') ? undefined : agent.id);
     await auditService.log({ agentId: agent.id, action: 'escalate_conversation', resourceType: 'conversation', resourceId: conv.id, details: { assigned_agent: targetAgent }, ipAddress: req.ip });
     res.json(conv);
   } catch (err: any) {
