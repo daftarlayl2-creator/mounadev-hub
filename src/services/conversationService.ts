@@ -34,7 +34,7 @@ export class ConversationService {
 
   async getById(id: string, assignedAgent?: string): Promise<any | null> {
     const supabase = getSupabase();
-    const { data, error } = await supabase
+    let query = supabase
       .from('conversations')
       .select('*, contacts(phone, name, business_name, business_type)')
       .eq('id', id);
