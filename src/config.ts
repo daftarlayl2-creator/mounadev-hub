@@ -6,7 +6,7 @@ export const config = {
   port: parseInt(process.env.PORT || '3001', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
   corsOrigins: (process.env.CORS_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean),
-  hubApiKey: process.env.HUB_API_KEY || 'caissa_hub_master_key_change_me',
+  hubApiKey: process.env.HUB_API_KEY || '',
   supabase: {
     url: process.env.SUPABASE_URL || '',
     serviceKey: process.env.SUPABASE_SERVICE_KEY || '',
@@ -40,6 +40,10 @@ export const config = {
 
 export function validateConfig(): void {
   const required = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY'];
+  if (process.env.NODE_ENV === 'production') {
+    required.push('WEBHOOK_SECRET', 'OPENWA_API_KEY');
+    if ((process.env.WHATSAPP_AUTO_REPLY || 'true') === 'true') required.push('HERMES_API_KEY');
+  }
   const missing = required.filter(key => !process.env[key]);
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
