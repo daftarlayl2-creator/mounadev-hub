@@ -15,12 +15,12 @@ router.get('/', requirePermission('read'), async (req: Request, res: Response) =
   try {
     const agent = (req as AuthenticatedRequest).agent;
     const result = await contactService.search({
-      search: req.query.search as string,
+      search: typeof req.query.search === 'string' ? req.query.search.slice(0, 100) : undefined,
       business_type: req.query.business_type as string,
       consent_status: req.query.consent_status as string,
       assigned_agent: agent.permissions.includes('admin') ? req.query.assigned_agent as string : agent.id,
-      limit: parseInt(req.query.limit as string) || 20,
-      offset: parseInt(req.query.offset as string) || 0,
+      limit: Math.min(Math.max(parseInt(req.query.limit as string) || 20, 1), 100),
+      offset: Math.min(Math.max(parseInt(req.query.offset as string) || 0, 0), 100000),
     });
     res.json(result);
   } catch (err: any) {
