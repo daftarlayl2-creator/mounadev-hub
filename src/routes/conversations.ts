@@ -21,8 +21,8 @@ router.get('/', requirePermission('read'), async (req: Request, res: Response) =
       contact_id: req.query.contact_id as string,
       status: req.query.status as string,
       assigned_agent: ((req as AuthenticatedRequest).agent.permissions.includes('admin') ? req.query.assigned_agent as string : (req as AuthenticatedRequest).agent.id),
-      limit: parseInt(req.query.limit as string) || 20,
-      offset: parseInt(req.query.offset as string) || 0,
+      limit: Math.min(Math.max(parseInt(req.query.limit as string) || 20, 1), 100),
+      offset: Math.min(Math.max(parseInt(req.query.offset as string) || 0, 0), 100000),
     });
     res.json(result);
   } catch (err: any) {
