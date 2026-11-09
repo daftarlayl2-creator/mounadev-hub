@@ -94,19 +94,28 @@ export class OpenWAAdapter implements ChannelAdapter {
   parseInbound(payload: any): InboundMessage[] {
     const messages: InboundMessage[] = [];
     // OpenWA webhook format: event 'message' or 'message.received'
+    if (!payload || typeof payload !== 'object') return messages;
     const isOpenWA = payload.event === 'message' || payload.event === 'message.received';
-    if (isOpenWA && payload.data) {
+    if (isOpenWA && payload.data && typeof payload.data === 'object') {
       const d = payload.data;
+      const rawFrom = d.from || d.sender || d.chatId || '';
+      const from = typeof rawFrom === 'string' ? rawFrom.replace(/@.*$/, '') : '';
+      const rawContent = d.body ?? d.text ?? d.content ?? '';
+      const content = typeof rawContent === 'string' ? rawContent.slice(0, 4096) : '';
+      const rawMessageId = d.id || d.messageId || d.key?.id || '';
+      const messageId = typeof rawMessageId === 'string' ? rawMessageId.slice(0, 255) : '';
+      if (!/^\\+?[1-9]\\d{6,14}$/.test(from) || !content.trim()) return messages;
+
       messages.push({
-        from: (d.from || d.sender || d.chatId || '').replace(/@.*$/, ''),
-        messageId: d.id || d.messageId || d.key?.id || '',
-        content: d.body || d.text || d.content || '',
+        from,
+        messageId,
+        content,
         timestamp: (() => {
           const t = d.timestamp;
           if (!t) return new Date();
           const n = Number(t);
-          if (isNaN(n)) return new Date(t);
-          return new Date(n > 1e12 ? n : n * 1000);
+          const date = isNaN(n) ? new Date(t) : new Date(n > 1e12 ? n : n * 1000);
+          return Number.isNaN(date.getTime()) ? new Date() : date;
         })(),
         type: (d.type === 'image' || d.type === 'document' || d.type === 'audio' || d.type === 'location') ? d.type : 'text',
       });
