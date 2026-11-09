@@ -12,10 +12,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: security-phase-1-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   verify:
     runs-on: ubuntu-latest
