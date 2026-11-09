@@ -34,6 +34,11 @@ export class OpenWAAdapter implements ChannelAdapter {
     return response.json();
   }
 
+  private maskPhone(phone: string): string {
+    const normalized = phone.replace(/\\D/g, '');
+    return normalized.length > 4 ? `***${normalized.slice(-4)}` : '****';
+  }
+
   async sendText(to: string, content: string): Promise<SendResult> {
     try {
       const chatId = to.includes('@') ? to : `${to.replace(/^\+/, '')}@c.us`;
@@ -41,13 +46,11 @@ export class OpenWAAdapter implements ChannelAdapter {
         chatId,
         text: content,
       });
-      console.log('DEBUG result:', JSON.stringify(result));
-      logger.info('OpenWA text sent', { to, messageId: result.id });
+      logger.info('OpenWA text sent', { to: this.maskPhone(to), messageId: result.id });
       return { success: true, messageId: result.id || result.messageId || 'unknown' };
     } catch (err: any) {
-      console.log('DEBUG error:', err.message);
-      logger.error('OpenWA sendText failed', { error: err.message, to });
-      return { success: false, messageId: '', error: err.message };
+      logger.error('OpenWA sendText failed', { to: this.maskPhone(to) });
+      return { success: false, messageId: '', error: 'OpenWA provider request failed' };
     }
   }
 
