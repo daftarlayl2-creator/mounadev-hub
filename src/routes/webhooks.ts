@@ -171,7 +171,7 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
     }
   } catch (err: any) {
     logger.error('Webhook processing error', { error: err.message });
-    res.status(500).json({ error: 'internal_error', message: err.message, code: 500 });
+    res.status(500).json({ error: 'internal_error', message: 'Webhook processing failed', code: 500 });
   }
 });
 
