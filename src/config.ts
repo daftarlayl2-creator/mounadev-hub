@@ -5,6 +5,7 @@ dotenv.config();
 export const config = {
   port: parseInt(process.env.PORT || '3001', 10),
   nodeEnv: process.env.NODE_ENV || 'development',
+  corsOrigins: (process.env.CORS_ORIGINS || '').split(',').map(value => value.trim()).filter(Boolean),
   hubApiKey: process.env.HUB_API_KEY || 'caissa_hub_master_key_change_me',
   supabase: {
     url: process.env.SUPABASE_URL || '',
