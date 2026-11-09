@@ -20,7 +20,7 @@ router.get('/', requirePermission('read'), async (req: Request, res: Response) =
   }
 });
 
-router.post('/', requirePermission('write'), async (req: Request, res: Response) => {
+router.post('/', requirePermission('manage'), async (req: Request, res: Response) => {
   try {
     const agent = (req as AuthenticatedRequest).agent;
     const parsed = templateSchema.safeParse(req.body);
@@ -38,7 +38,7 @@ router.post('/', requirePermission('write'), async (req: Request, res: Response)
   }
 });
 
-router.patch('/:id', requirePermission('write'), async (req: Request, res: Response) => {
+router.patch('/:id', requirePermission('manage'), async (req: Request, res: Response) => {
   try {
     const agent = (req as AuthenticatedRequest).agent;
     const parsed = templateUpdateSchema.safeParse(req.body);
@@ -56,7 +56,7 @@ router.patch('/:id', requirePermission('write'), async (req: Request, res: Respo
   }
 });
 
-router.post('/:id/submit', requirePermission('write'), async (req: Request, res: Response) => {
+router.post('/:id/submit', requirePermission('manage'), async (req: Request, res: Response) => {
   try {
     const agent = (req as AuthenticatedRequest).agent;
     const supabase = getSupabase();
