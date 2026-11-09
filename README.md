@@ -61,7 +61,19 @@ curl http://localhost:3001/health
 
 ## Authentication
 
-All API requests require `X-Agent-Key` header with the agent's API key.
+All API requests require `X-Agent-Key` header with the agent's API key. Agent access to contacts and conversations is scoped to the authenticated agent's assignment; agents cannot assign records or grant consent through request payloads.
+
+### Webhook authentication
+
+Configure the OpenWA webhook to send `X-Webhook-Secret: <WEBHOOK_SECRET>` on every POST to `/api/v1/webhooks/whatsapp`. Requests without a valid shared secret are rejected. Use a long random secret and store it only in the server environment and OpenWA's protected webhook configuration. The GET verification endpoint uses the same secret as its verification token.
+
+### Browser origins
+
+Set `CORS_ORIGINS` to a comma-separated allowlist of exact dashboard origins (scheme + hostname + optional port). Browser origins not on this list are denied. Requests without an Origin header remain available for server-to-server clients.
+
+### Emergency stop
+
+The admin pause/resume endpoints persist state in `audit_log`. Outbound sends and WhatsApp auto-replies check the latest pause/resume event; a pause defaults to 60 minutes and may be set from 1 to 1440 minutes.
 
 ## Architecture
 
