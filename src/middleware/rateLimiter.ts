@@ -3,6 +3,8 @@ import { Request, Response, NextFunction } from 'express';
 import { getSupabase } from '../utils/supabase';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { contactService } from '../services/contactService';
+import { AuthenticatedRequest } from './auth';
 
 interface RateLimitResult {
   allowed: boolean;
@@ -132,8 +134,24 @@ export function rateLimitMiddleware(req: Request, res: Response, next: NextFunct
 
   const contactId = req.body?.contact_id;
 
-  checkRateLimit(agent.id, contactId)
+  // Do not evaluate contact-specific limits until ownership is established.
+  // Otherwise an authenticated agent could probe another agent's contact IDs
+  // and infer their outbound activity from rate-limit responses.
+  const assignedAgentScope = agent.permissions?.includes('admin') ? undefined : agent.id;
+  const authorizeContact = typeof contactId === 'string'
+    ? contactService.getById(contactId, assignedAgentScope)
+    : Promise.resolve(null);
+
+  authorizeContact
+    .then(contact => {
+      if (typeof contactId === 'string' && !contact) {
+        res.status(404).json({ error: 'contact_not_found', message: 'Contact not found', code: 404 });
+        return null;
+      }
+      return checkRateLimit(agent.id, typeof contactId === 'string' ? contactId : undefined);
+    })
     .then(result => {
+      if (!result) return;
       if (!result.allowed) {
         logger.warn('Rate limit exceeded', { agent: agent.id, reason: result.reason });
         res.status(429).json({
