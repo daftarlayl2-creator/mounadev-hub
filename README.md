@@ -65,7 +65,7 @@ All API requests require `X-Agent-Key` header with the agent's API key. Agent ac
 
 ### Webhook authentication
 
-Configure the OpenWA webhook to send `X-Webhook-Secret: <WEBHOOK_SECRET>` on every POST to `/api/v1/webhooks/whatsapp`. Requests without a valid shared secret are rejected. Use a long random secret and store it only in the server environment and OpenWA's protected webhook configuration. The GET verification endpoint uses the same secret as its verification token.
+Set the OpenWA webhook's `secret` field to the same long random value as the server's `WEBHOOK_SECRET`. OpenWA signs the exact JSON request body with HMAC-SHA256 and sends `X-OpenWA-Signature: sha256=<hex>`; the receiver verifies that signature against the captured raw request bytes using a constant-time comparison. Requests without a valid signature are rejected. Do not replace this with a plain custom header.
 
 ### Browser origins
 
