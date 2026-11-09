@@ -7,6 +7,7 @@ import { logger } from '../utils/logger';
 import { listPersonas } from '../services/agentPersonas';
 import { aiReplyService } from '../services/aiReplyService';
 import { config } from '../config';
+import { z } from 'zod';
 
 const router = Router();
 router.use(authenticateAgent);
@@ -15,18 +16,18 @@ router.use(authenticateAgent);
 router.post('/pause-outbound', requirePermission('admin'), async (req: Request, res: Response) => {
   try {
     const agent = (req as AuthenticatedRequest).agent;
-    const { reason, duration_minutes } = req.body;
+    const parsed = z.object({ reason: z.string().max(500).optional(), duration_minutes: z.number().int().min(1).max(1440).default(60) }).strict().safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'validation_error', message: parsed.error.message, code: 400 });
+      return;
+    }
+    const { reason, duration_minutes } = parsed.data;
     const supabase = getSupabase();
-
-    // Store pause state in a simple key-value (use a settings table or env)
-    // For now, log and return success
-    await auditService.log({
-      agentId: agent.id,
-      action: 'pause_outbound',
-      resourceType: 'system',
-      details: { reason, duration_minutes },
-      ipAddress: req.ip,
+    const { error } = await supabase.from('audit_log').insert({
+      agent_id: agent.id, action: 'pause_outbound', resource_type: 'system',
+      details: { reason: reason || 'emergency_stop', duration_minutes }, ip_address: req.ip,
     });
+    if (error) throw new Error('Unable to persist outbound pause state');
 
     logger.warn('Outbound messaging paused', { agent: agent.id, reason, duration_minutes });
     res.json({ paused: true, reason, duration_minutes, paused_by: agent.id });
@@ -39,7 +40,9 @@ router.post('/pause-outbound', requirePermission('admin'), async (req: Request, 
 router.post('/resume-outbound', requirePermission('admin'), async (req: Request, res: Response) => {
   try {
     const agent = (req as AuthenticatedRequest).agent;
-    await auditService.log({ agentId: agent.id, action: 'resume_outbound', resourceType: 'system', ipAddress: req.ip });
+    const supabase = getSupabase();
+    const { error } = await supabase.from('audit_log').insert({ agent_id: agent.id, action: 'resume_outbound', resource_type: 'system', ip_address: req.ip });
+    if (error) throw new Error('Unable to persist outbound resume state');
     logger.info('Outbound messaging resumed', { agent: agent.id });
     res.json({ paused: false, resumed_by: agent.id });
   } catch (err: any) {
@@ -48,7 +51,7 @@ router.post('/resume-outbound', requirePermission('admin'), async (req: Request,
 });
 
 // GET /admin/status
-router.get('/status', requirePermission('read'), async (req: Request, res: Response) => {
+router.get('/status', requirePermission('admin'), async (req: Request, res: Response) => {
   try {
     const supabase = getSupabase();
     const { count: totalMessages } = await supabase.from('messages').select('*', { count: 'exact', head: true });
