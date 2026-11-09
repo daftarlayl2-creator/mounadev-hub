@@ -76,9 +76,12 @@ export class AutomationService {
       'arreter', 'arretez', 'desabonner',
       'لا', 'وقف',
     ];
-    return explicitPhrases.some(phrase =>
+    return explicitPhrases.some(phrase => {
+      const escaped = phrase.replace(/[.*+?^\x24{}()|[\]\\]/g, '\\    return explicitPhrases.some(phrase =>
       normalized === phrase || normalized.startsWith(phrase + ' ')
-    );
+    );');
+      return new RegExp('(^|\\s)' + escaped + '($|\\s)').test(normalized);
+    });
   }
 
   // Check if message contains sensitive/complaint keywords
