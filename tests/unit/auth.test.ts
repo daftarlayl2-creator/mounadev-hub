@@ -57,3 +57,35 @@ describe('requirePermission middleware', () => {
     expect(next).not.toHaveBeenCalled();
   });
 });
+
+import { AutomationService } from '../../src/services/automationService';
+import { contactSchema, contactUpdateSchema, conversationCreateSchema } from '../../src/utils/validation';
+
+describe('security validation regressions', () => {
+  const automation = new AutomationService();
+
+  it.each(['STOP', 'unsubscribe', 'opt out', 'opt-out', 'please stop messaging me', 'arrêter', 'arrêtez', 'désabonner', 'لا', 'وقف'])(
+    'recognizes explicit opt-out phrase: %s',
+    (message) => expect(automation.isOptOutMessage(message)).toBe(true),
+  );
+
+  it.each(['I have no questions', 'No problem', 'knowledge base', 'stopwatch', 'désabonnement information'])(
+    'does not match ordinary text as opt-out: %s',
+    (message) => expect(automation.isOptOutMessage(message)).toBe(false),
+  );
+
+  it('rejects client-supplied consent and assignment fields on contact creation', () => {
+    const result = contactSchema.safeParse({ phone: '+212600000000', consent_status: 'opted_in', assigned_agent: 'mara' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects protected fields on contact update', () => {
+    const result = contactUpdateSchema.safeParse({ consent_status: 'opted_in', assigned_agent: 'mara' });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects client-controlled assignment on conversation creation', () => {
+    const result = conversationCreateSchema.safeParse({ contact_id: '00000000-0000-4000-8000-000000000000', assigned_agent: 'mara' });
+    expect(result.success).toBe(false);
+  });
+});
