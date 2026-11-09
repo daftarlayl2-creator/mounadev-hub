@@ -1,5 +1,6 @@
 // src/routes/webhooks.ts
 import { Router, Request, Response } from 'express';
+import { timingSafeEqual } from 'crypto';
 import { contactService } from '../services/contactService';
 import { conversationService } from '../services/conversationService';
 import { MessageService } from '../services/messageService';
@@ -9,10 +10,18 @@ import { automationService } from '../services/automationService';
 import { aiReplyService } from '../services/aiReplyService';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { checkRateLimit } from '../middleware/rateLimiter';
 
 const router = Router();
 const adapter = new OpenWAAdapter();
 const msgService = new MessageService(adapter);
+
+function safeSecretEqual(provided: string | undefined, expected: string): boolean {
+  if (!provided || !expected) return false;
+  const providedBuffer = Buffer.from(provided);
+  const expectedBuffer = Buffer.from(expected);
+  return providedBuffer.length === expectedBuffer.length && timingSafeEqual(providedBuffer, expectedBuffer);
+}
 
 // GET /webhooks/whatsapp — Meta verification
 router.get('/whatsapp', (req: Request, res: Response) => {
@@ -20,7 +29,7 @@ router.get('/whatsapp', (req: Request, res: Response) => {
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  if (mode === 'subscribe' && token === process.env.WEBHOOK_SECRET) {
+  if (mode === 'subscribe' && safeSecretEqual(typeof token === 'string' ? token : undefined, config.webhook.secret)) {
     logger.info('Webhook verified');
     res.status(200).send(challenge);
   } else {
@@ -31,12 +40,12 @@ router.get('/whatsapp', (req: Request, res: Response) => {
 // POST /webhooks/whatsapp — Inbound messages
 router.post('/whatsapp', async (req: Request, res: Response) => {
   try {
-    // Verify signature (simplified for OpenWA; Meta uses HMAC)
-    // const signature = req.headers['x-hub-signature-256'] as string;
-    // if (!adapter.verifyWebhook(req.body, signature)) {
-    //   res.status(403).json({ error: 'invalid_signature' });
-    //   return;
-    // }
+    // OpenWA must be configured to send this shared secret header. Do not accept unauthenticated events.
+    const suppliedSecret = req.get('x-webhook-secret') || undefined;
+    if (!safeSecretEqual(suppliedSecret, config.webhook.secret)) {
+      res.status(401).json({ error: 'invalid_webhook_authentication' });
+      return;
+    }
 
     const inboundMessages = adapter.parseInbound(req.body);
 
@@ -60,6 +69,14 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
         let conversation = await conversationService.getByContact(contact.id);
         if (!conversation) {
           conversation = await conversationService.create(contact.id, 'whatsapp');
+        }
+
+        // Provider message IDs make webhook retries idempotent.
+        if (msg.messageId) {
+          const supabase = (await import('../utils/supabase')).getSupabase();
+          const { data: duplicate, error: duplicateError } = await supabase.from('messages').select('id').eq('provider_message_id', msg.messageId).maybeSingle();
+          if (duplicateError) throw new Error('Unable to verify inbound message idempotency');
+          if (duplicate) continue;
         }
 
         // Store inbound message
@@ -90,6 +107,9 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
         if (assignedAgent !== conversation.assigned_agent) {
           await conversationService.update(conversation.id, { assigned_agent: assignedAgent });
         }
+        if (contact.assigned_agent !== assignedAgent) {
+          contact = await contactService.update(contact.id, { assigned_agent: assignedAgent });
+        }
 
         // Determine which employee agent backs this WhatsApp conversation
         const waAgentId = contact.assigned_agent || assignedAgent || config.whatsappAgent.agentId;
@@ -99,6 +119,11 @@ router.post('/whatsapp', async (req: Request, res: Response) => {
         const isComplaint = automationService.isComplaintOrSensitive(msg.content);
         if (config.whatsappAgent.autoReply && !isOptOut && !isComplaint) {
           try {
+            const limit = await checkRateLimit(waAgentId, contact.id);
+            if (!limit.allowed) {
+              logger.warn('Webhook auto-reply blocked by outbound rate limit', { agent: waAgentId, reason: limit.reason });
+              continue;
+            }
             // Fetch recent conversation history for context
             const recent = await msgService.getConversationMessages(conversation.id);
             const history = (recent || [])
