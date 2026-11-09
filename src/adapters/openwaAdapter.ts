@@ -1,6 +1,6 @@
 // src/adapters/openwaAdapter.ts
 import { ChannelAdapter, SendResult, MessageStatus, InboundMessage } from './channelAdapter';
-import { timingSafeEqual } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
@@ -84,11 +84,12 @@ export class OpenWAAdapter implements ChannelAdapter {
     return { status: 'sent' };
   }
 
-  verifyWebhook(_payload: any, signature: string): boolean {
-    if (!signature || !config.webhook.secret) return false;
-    const supplied = Buffer.from(signature);
-    const expected = Buffer.from(config.webhook.secret);
-    return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+  verifyWebhook(rawBody: Buffer | string | undefined, signature: string | undefined): boolean {
+    if (!rawBody || !signature || !config.webhook.secret) return false;
+    const expected = 'sha256=' + createHmac('sha256', config.webhook.secret).update(rawBody).digest('hex');
+    const suppliedBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expected);
+    return suppliedBuffer.length === expectedBuffer.length && timingSafeEqual(suppliedBuffer, expectedBuffer);
   }
 
   parseInbound(payload: any): InboundMessage[] {
