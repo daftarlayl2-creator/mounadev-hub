@@ -32,7 +32,7 @@ export const templateUpdateSchema = z.object({
   content: z.string().min(1).max(1024).optional(),
   language: z.string().length(2).optional(),
   category: z.enum(['marketing', 'utility', 'authentication']).optional(),
-  variables: z.array(z.string()).optional(),
+  variables: z.array(z.string().max(100)).max(100).optional(),
 }).strict().refine(value => Object.keys(value).length > 0, 'At least one editable field is required');
 
 export const messageSchema = z.object({
@@ -47,7 +47,7 @@ export const messageSchema = z.object({
 export const templateMessageSchema = z.object({
   contact_id: z.string().uuid(),
   template_name: z.string().min(1).max(100),
-  variables: z.record(z.string(), z.string()).optional(),
+  variables: z.record(z.string(), z.string().max(1000)).optional().refine(value => value === undefined || Object.keys(value).length <= 100, 'At most 100 template variables are allowed'),
   idempotency_key: z.string().max(255).optional(),
 }).strict();
 
@@ -56,7 +56,7 @@ export const templateSchema = z.object({
   language: z.string().length(2).default('fr'),
   category: z.enum(['marketing', 'utility', 'authentication']).default('marketing'),
   content: z.string().min(1).max(1024),
-  variables: z.array(z.string()).default([]),
+  variables: z.array(z.string().max(100)).max(100).default([]),
 }).strict();
 
 export const optOutSchema = z.object({
