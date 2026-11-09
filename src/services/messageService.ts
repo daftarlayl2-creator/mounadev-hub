@@ -109,11 +109,15 @@ export class MessageService {
       // the request before the connection failed. Keep the row queued for manual
       // reconciliation rather than falsely marking it failed/retryable.
       const reason = 'send_outcome_unknown';
-      const { error: updateError } = await supabase
-        .from('messages')
-        .update({ error_message: reason, updated_at: new Date().toISOString() })
-        .eq('id', message.id);
-      if (updateError) {
+      try {
+        const { error: updateError } = await supabase
+          .from('messages')
+          .update({ error_message: reason, updated_at: new Date().toISOString() })
+          .eq('id', message.id);
+        if (updateError) {
+          logger.error('Message transport outcome unknown and could not be annotated', { messageId: message.id });
+        }
+      } catch (_updateErr) {
         logger.error('Message transport outcome unknown and could not be annotated', { messageId: message.id });
       }
       logger.error('Message transport outcome unknown; automatic retry is unsafe', { messageId: message.id });
@@ -121,22 +125,30 @@ export class MessageService {
     }
 
     if (!result.success) {
-      const { error: updateError } = await supabase
-        .from('messages')
-        .update({ status: 'failed', error_message: result.error || 'provider_rejected', updated_at: new Date().toISOString() })
-        .eq('id', message.id);
-      if (updateError) {
+      try {
+        const { error: updateError } = await supabase
+          .from('messages')
+          .update({ status: 'failed', error_message: result.error || 'provider_rejected', updated_at: new Date().toISOString() })
+          .eq('id', message.id);
+        if (updateError) {
+          logger.error('Provider rejected message but failed status could not be persisted', { messageId: message.id });
+        }
+      } catch (_updateErr) {
         logger.error('Provider rejected message but failed status could not be persisted', { messageId: message.id });
       }
       throw new Error(`provider_error: ${result.error || 'provider_rejected'}`);
     }
 
     const sentAt = new Date().toISOString();
-    const { error: statusError } = await supabase
-      .from('messages')
-      .update({ status: 'sent', provider_message_id: result.messageId, updated_at: sentAt })
-      .eq('id', message.id);
-    if (statusError) {
+    try {
+      const { error: statusError } = await supabase
+        .from('messages')
+        .update({ status: 'sent', provider_message_id: result.messageId, updated_at: sentAt })
+        .eq('id', message.id);
+      if (statusError) {
+        logger.error('Provider accepted message but sent status could not be persisted', { messageId: message.id });
+      }
+    } catch (_statusErr) {
       logger.error('Provider accepted message but sent status could not be persisted', { messageId: message.id });
     }
 
