@@ -69,7 +69,7 @@ Set the OpenWA webhook's `secret` field to the same long random value as the ser
 
 ### Browser origins
 
-Set `CORS_ORIGINS` to a comma-separated allowlist of exact dashboard origins (scheme + hostname + optional port). Browser origins not on this list are denied. Requests without an Origin header remain available for server-to-server clients.
+Set `CORS_ORIGINS` to a comma-separated allowlist of exact dashboard origins (scheme + hostname + optional port). In production, the server requires at least one explicit HTTPS origin and rejects wildcards, paths, and credentials. Browser origins not on this list are denied. Requests without an Origin header remain available for server-to-server clients.
 
 ### Emergency stop
 
