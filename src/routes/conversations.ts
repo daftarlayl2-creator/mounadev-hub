@@ -112,8 +112,20 @@ router.post('/:id/escalate', requirePermission('write'), async (req: Request, re
       return;
     }
     const targetAgent = agent.permissions.includes('admin') && typeof req.body.agent_id === 'string' ? req.body.agent_id : 'mara';
+    if (agent.permissions.includes('admin') && typeof req.body.agent_id === 'string' && !/^[a-z0-9_-]{1,64}$/i.test(targetAgent)) {
+      res.status(400).json({ error: 'validation_error', message: 'Invalid target agent id', code: 400 });
+      return;
+    }
+    const { data: target, error: targetError } = await (await import('../utils/supabase')).getSupabase()
+      .from('agents').select('id').eq('id', targetAgent).maybeSingle();
+    if (targetError || !target) {
+      res.status(400).json({ error: 'invalid_target_agent', message: 'Target agent does not exist', code: 400 });
+      return;
+    }
     const conv = await conversationService.escalate(req.params.id, targetAgent);
-    await auditService.log({ agentId: agent.id, action: 'escalate_conversation', resourceType: 'conversation', resourceId: conv.id, ipAddress: req.ip });
+    // Keep contact and conversation ownership aligned so the receiving agent can access and reply.
+    await contactService.update(conv.contact_id, { assigned_agent: targetAgent });
+    await auditService.log({ agentId: agent.id, action: 'escalate_conversation', resourceType: 'conversation', resourceId: conv.id, details: { assigned_agent: targetAgent }, ipAddress: req.ip });
     res.json(conv);
   } catch (err: any) {
     res.status(500).json({ error: 'internal_error', message: err.message, code: 500 });
