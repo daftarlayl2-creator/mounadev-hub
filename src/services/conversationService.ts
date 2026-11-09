@@ -23,8 +23,8 @@ export class ConversationService {
     if (params.status) query = query.eq('status', params.status);
     if (params.assigned_agent) query = query.eq('assigned_agent', params.assigned_agent);
 
-    const limit = params.limit || 20;
-    const offset = params.offset || 0;
+    const limit = Math.min(Math.max(params.limit || 20, 1), 100);
+    const offset = Math.min(Math.max(params.offset || 0, 0), 100000);
     query = query.range(offset, offset + limit - 1).order('updated_at', { ascending: false });
 
     const { data, error, count } = await query;
