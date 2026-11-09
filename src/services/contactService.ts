@@ -72,7 +72,7 @@ export class ContactService {
       .select()
       .single();
     if (error) throw new Error(`Failed to create contact: ${error.message}`);
-    logger.info('Contact created', { id: data.id, phone: data.phone });
+    logger.info('Contact created', { id: data.id, phone: '***' + String(data.phone).slice(-4) });
     return data;
   }
 
