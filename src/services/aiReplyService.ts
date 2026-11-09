@@ -78,8 +78,8 @@ export class AiReplyService {
       }
       return { success: true, reply };
     } catch (err: any) {
-      logger.error('AI reply generation failed', { error: err.message });
-      return { success: false, reply: '', error: err.message };
+      logger.error('AI reply generation failed');
+      return { success: false, reply: '', error: 'AI reply service unavailable' };
     }
   }
 }
