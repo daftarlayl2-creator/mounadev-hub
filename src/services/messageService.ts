@@ -189,7 +189,7 @@ export class MessageService {
       window_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     });
 
-    logger.info('Inbound message stored', { messageId: data.id, from: params.senderPhone });
+    logger.info('Inbound message stored', { messageId: data.id, from: '***' + params.senderPhone.replace(/\\D/g, '').slice(-4) });
     return data;
   }
 }
