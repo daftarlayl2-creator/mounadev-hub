@@ -32,13 +32,14 @@ export class ConversationService {
     return { data: data || [], total: count || 0 };
   }
 
-  async getById(id: string): Promise<any | null> {
+  async getById(id: string, assignedAgent?: string): Promise<any | null> {
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('conversations')
       .select('*, contacts(phone, name, business_name, business_type)')
-      .eq('id', id)
-      .single();
+      .eq('id', id);
+    if (assignedAgent) query = query.eq('assigned_agent', assignedAgent);
+    const { data, error } = await query.single();
     if (error) return null;
     return data;
   }
