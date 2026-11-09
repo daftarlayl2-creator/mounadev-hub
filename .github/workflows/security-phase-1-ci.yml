@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verify:
@@ -25,6 +25,15 @@ jobs:
           cache: npm
       - name: Regenerate lockfile for security-upgraded dependencies
         run: npm cache clean --force && rm -rf node_modules package-lock.json && npm install --package-lock-only --ignore-scripts --no-audit --no-fund --legacy-peer-deps
+      - name: Commit regenerated dependency lockfile
+        run: |
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "chore: regenerate lockfile for security updates"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
       - name: Upload generated lockfile
         uses: actions/upload-artifact@v4
         with:
