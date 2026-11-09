@@ -13,10 +13,16 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
-export async function authenticateAgent(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const apiKey = req.headers['x-agent-key'] as string;
+export function isValidAgentApiKey(value: unknown): value is string {
+  // Generated agent keys are opaque strings; reject malformed or oversized headers
+  // before performing expensive bcrypt comparisons.
+  return typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\\s\\0-\\x1f\\x7f]/.test(value);
+}
 
-  if (!apiKey) {
+export async function authenticateAgent(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const apiKey = req.get('X-Agent-Key');
+
+  if (!isValidAgentApiKey(apiKey)) {
     res.status(401).json({ error: 'agent_not_found', message: 'Missing X-Agent-Key header', code: 401 });
     return;
   }
