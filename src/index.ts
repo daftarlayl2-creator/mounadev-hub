@@ -38,7 +38,7 @@ app.use(cors({
     // Non-browser clients do not send Origin; browser origins must be explicitly allowlisted.
     if (!origin) return callback(null, true);
     if (config.corsOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Origin not allowed by CORS'));
+    return callback(null, false);
   },
   credentials: true,
 }));
