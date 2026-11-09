@@ -16,8 +16,8 @@ const msgService = new MessageService(adapter);
 
 interface PersistedInbound {
   msg: ReturnType<OpenWAAdapter['parseInbound']>[number];
-  contact: Awaited<ReturnType<typeof contactService.getByPhone>>;
-  conversation: Awaited<ReturnType<typeof conversationService.getByContact>>;
+  contact: NonNullable<Awaited<ReturnType<typeof contactService.getByPhone>>>;
+  conversation: NonNullable<Awaited<ReturnType<typeof conversationService.getByContact>>>;
 }
 
 export function getMessageIdempotencyKey(deliveryKey: string | undefined, messageId: string | undefined, index: number): string | undefined {
